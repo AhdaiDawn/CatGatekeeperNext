@@ -1,0 +1,15 @@
+[Unit]
+Description=Cat Gatekeeper desktop reminder
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+Environment=QT_QPA_PLATFORM=wayland
+ExecStart=%h/.local/bin/cat-gatekeeperd
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=64 66 69
+
+[Install]
+WantedBy=graphical-session.target
