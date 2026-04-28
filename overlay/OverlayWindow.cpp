@@ -114,9 +114,10 @@ void OverlayWindow::paintEvent(QPaintEvent *event)
         static_cast<qreal>(clip.frameWidth) * scale,
         static_cast<qreal>(clip.frameHeight) * scale);
 
+    drawCountdown(&painter, canvasTopLeft, drawnCanvas, scale);
+
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     painter.drawImage(target, image);
-    drawCountdown(&painter, canvasTopLeft, drawnCanvas, scale);
 }
 
 QString OverlayWindow::countdownText(qint64 elapsedMs) const
