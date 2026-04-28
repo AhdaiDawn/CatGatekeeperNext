@@ -2,6 +2,8 @@
 
 KDE Plasma Wayland reminder daemon with a transparent cat overlay.
 
+![CatGatekeeperNext demo](examples/demo.png)
+
 The daemon counts unlocked session time. When the interval is reached, it starts `cat-gatekeeper-overlay`; after the overlay exits, the timer restarts. The overlay assets are embedded in the overlay executable.
 
 ## Requirements
