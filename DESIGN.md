@@ -142,6 +142,8 @@ The portable package contains:
 - `start.sh`
 - `README-portable.txt`
 
+On `start`, `start.sh` registers a user command named `cat-gatekeeper` under `$HOME/.local/bin` by default, or `CAT_GATEKEEPER_COMMAND_DIR` when set. The command delegates back to the package's `start.sh`, so users can run `cat-gatekeeper status`, `cat-gatekeeper trigger`, `cat-gatekeeper dismiss`, and `cat-gatekeeper quit` from any shell where that directory is in `PATH`. `quit` removes the registered command after sending the daemon quit request.
+
 It does not bundle system libraries.
 
 ## Exit Codes

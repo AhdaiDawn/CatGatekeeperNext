@@ -156,10 +156,12 @@ Run from the unpacked directory:
 
 ```sh
 ./start.sh
-./start.sh status
-./start.sh trigger
-./start.sh quit
+cat-gatekeeper status
+cat-gatekeeper trigger
+cat-gatekeeper quit
 ```
+
+`./start.sh` registers a user command at `$HOME/.local/bin/cat-gatekeeper`, or under `CAT_GATEKEEPER_COMMAND_DIR` when that environment variable is set. If that directory is not in `PATH`, the script prints the exact `export PATH=...` line to add. `cat-gatekeeper quit` stops the daemon and removes the registered command.
 
 The package does not write to `/usr`. Runtime libraries are not bundled.
 

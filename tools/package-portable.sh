@@ -155,6 +155,8 @@ settings="$app_dir/settings.conf"
 config_home="$app_dir/config-home"
 config_file="$config_home/cat-gatekeeper/config.conf"
 log_file="$app_dir/logs/cat-gatekeeperd.log"
+command_name="cat-gatekeeper"
+command_marker="# cat-gatekeeper portable command shim"
 
 die() {
     printf 'cat-gatekeeper: %s\n' "$*" >&2
@@ -167,7 +169,84 @@ Usage:
   $0 [start]
   $0 --foreground
   $0 {status|trigger|dismiss|quit}
+
+After start, use:
+  cat-gatekeeper {status|trigger|dismiss|quit}
 EOF_USAGE
+}
+
+resolve_command_dir() {
+    if [ -n "${CAT_GATEKEEPER_COMMAND_DIR:-}" ]; then
+        printf '%s\n' "$CAT_GATEKEEPER_COMMAND_DIR"
+        return
+    fi
+    [ -n "${HOME:-}" ] || die "HOME is required to register the control command"
+    printf '%s/.local/bin\n' "$HOME"
+}
+
+registered_command_path() {
+    printf '%s/%s\n' "$(resolve_command_dir)" "$command_name"
+}
+
+is_managed_command() {
+    local path="$1"
+    [ -f "$path" ] || return 1
+    grep -Fqx "$command_marker" "$path"
+}
+
+registered_command_targets_this_package() {
+    local path="$1"
+    [ -f "$path" ] || return 1
+    grep -Fqx "# target: $app_dir/start.sh" "$path"
+}
+
+path_contains_command_dir() {
+    local command_dir="$1"
+    case ":${PATH:-}:" in
+        *":$command_dir:"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+register_command() {
+    local command_dir command_path
+    command_dir="$(resolve_command_dir)"
+    command_path="$(registered_command_path)"
+
+    mkdir -p "$command_dir"
+    if [ -e "$command_path" ] && ! is_managed_command "$command_path"; then
+        die "$command_path already exists and is not managed by this package"
+    fi
+
+    {
+        printf '#!/usr/bin/env bash\n'
+        printf '%s\n' "$command_marker"
+        printf '# target: %s\n' "$app_dir/start.sh"
+        printf 'export CAT_GATEKEEPER_COMMAND_DIR=%q\n' "$command_dir"
+        printf 'exec %q "$@"\n' "$app_dir/start.sh"
+    } > "$command_path"
+    chmod 0755 "$command_path"
+
+    printf 'Control command registered: %s\n' "$command_path"
+    if ! path_contains_command_dir "$command_dir"; then
+        printf 'Add this to your shell PATH to use "%s" directly:\n' "$command_name"
+        printf '  export PATH="%s:$PATH"\n' "$command_dir"
+    fi
+}
+
+unregister_command() {
+    local command_path
+    command_path="$(registered_command_path)"
+
+    if [ ! -e "$command_path" ]; then
+        return 0
+    fi
+    if is_managed_command "$command_path" && registered_command_targets_this_package "$command_path"; then
+        rm -f "$command_path"
+        printf 'Control command unregistered: %s\n' "$command_path"
+    else
+        printf 'Control command left in place: %s\n' "$command_path" >&2
+    fi
 }
 
 prepare() {
@@ -187,6 +266,7 @@ case "$command" in
     start)
         [ "$#" -le 1 ] || die "start does not accept extra arguments"
         prepare
+        register_command
         if "$ctl" status >/dev/null 2>&1; then
             printf 'cat-gatekeeperd is already running.\n'
             exit 0
@@ -198,12 +278,25 @@ case "$command" in
     --foreground)
         [ "$#" -eq 1 ] || die "--foreground does not accept extra arguments"
         prepare
-        exec "$daemon"
+        register_command
+        trap unregister_command EXIT
+        "$daemon"
+        exit "$?"
         ;;
-    status|trigger|dismiss|quit)
+    status|trigger|dismiss)
         [ "$#" -eq 1 ] || die "$command does not accept extra arguments"
         prepare
         exec "$ctl" "$command"
+        ;;
+    quit)
+        [ "$#" -eq 1 ] || die "quit does not accept extra arguments"
+        prepare
+        set +e
+        "$ctl" quit
+        result="$?"
+        set -e
+        unregister_command
+        exit "$result"
         ;;
     -h|--help)
         usage
@@ -231,10 +324,22 @@ Required runtime libraries:
 Start:
   ./start.sh
 
+After start:
+  cat-gatekeeper status
+  cat-gatekeeper trigger
+  cat-gatekeeper dismiss
+  cat-gatekeeper quit
+
+Command registration:
+  ./start.sh writes cat-gatekeeper to \$HOME/.local/bin by default.
+  Set CAT_GATEKEEPER_COMMAND_DIR to choose another directory.
+  If the command directory is not in PATH, start.sh prints the export line to add.
+  cat-gatekeeper quit stops the daemon and removes the registered command.
+
 Foreground:
   ./start.sh --foreground
 
-Control:
+Direct control:
   ./start.sh status
   ./start.sh trigger
   ./start.sh dismiss
