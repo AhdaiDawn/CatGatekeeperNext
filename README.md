@@ -39,6 +39,8 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
+`assets/processed/` is generated from `assets/source/` and is not tracked by Git. The `just build`, `just release`, `just check`, and `just package` commands regenerate it when needed.
+
 Outputs:
 
 ```text
