@@ -185,7 +185,7 @@ cmake --install build
 
 ## Portable Package
 
-Portable packaging is Linux-only for now.
+The portable packaging script is Linux-only for now. GitHub Actions builds the Windows package directly in CI.
 
 ```sh
 ./tools/package-portable.sh
@@ -216,6 +216,15 @@ cat-gatekeeper quit
 `./start.sh` registers a user command at `$HOME/.local/bin/cat-gatekeeper`, or under `CAT_GATEKEEPER_COMMAND_DIR` when that environment variable is set. If that directory is not in `PATH`, the script prints the exact `export PATH=...` line to add. `cat-gatekeeper quit` stops the daemon and removes the registered command.
 
 The package does not write to `/usr`. Runtime libraries are not bundled.
+
+## GitHub Release
+
+GitHub Actions builds Linux and Windows packages on pushes and pull requests. Pushing a `v*` tag creates a GitHub Release with:
+
+- `cat-gatekeeper-linux-x86_64-portable.tar.gz`
+- `cat-gatekeeper-linux-x86_64-portable.tar.gz.sha256`
+- `cat-gatekeeper-windows-ucrt64-portable.zip`
+- `cat-gatekeeper-windows-ucrt64-portable.zip.sha256`
 
 ## systemd User Service
 

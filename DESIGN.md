@@ -178,6 +178,15 @@ On `start`, `start.sh` registers a user command named `cat-gatekeeper` under `$H
 
 It does not bundle system libraries.
 
+## CI Release
+
+GitHub Actions builds both release packages:
+
+- Linux: `cat-gatekeeper-linux-x86_64-portable.tar.gz`
+- Windows: `cat-gatekeeper-windows-ucrt64-portable.zip`
+
+Push and pull-request builds upload both packages as workflow artifacts. Tags matching `v*` publish both packages plus their `.sha256` files to a GitHub Release.
+
 ## Exit Codes
 
 `cat-gatekeeperd`:
