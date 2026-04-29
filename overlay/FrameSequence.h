@@ -21,6 +21,8 @@ public:
     bool finished() const;
 
 private:
+    bool ensureIntroVideoDecoder(QString *error);
+    bool ensureSleepVideoDecoder(QString *error);
     bool loadImage(const QString &path, QImage *image, QString *error) const;
     bool loadIntroFrame(int frameNumber, QString *error);
     bool loadSleepFrame(int frameNumber, QString *error);

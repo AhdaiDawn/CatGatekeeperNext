@@ -23,19 +23,38 @@ bool FrameSequence::prepare(QString *error)
                 m_sleepFrames.push_back(frame);
             }
         }
-    } else {
-        m_introVideoDecoder = std::make_unique<VideoFrameDecoder>();
-        if (!m_introVideoDecoder->open(m_assets.clip1.videoPath(m_assets.assetsDir), m_assets.clip1.frameWidth, m_assets.clip1.frameHeight, error)) {
-            return false;
-        }
-
-        m_sleepVideoDecoder = std::make_unique<VideoFrameDecoder>();
-        if (!m_sleepVideoDecoder->open(m_assets.clip2.videoPath(m_assets.assetsDir), m_assets.clip2.frameWidth, m_assets.clip2.frameHeight, error)) {
-            return false;
-        }
     }
 
     return loadIntroFrame(1, error);
+}
+
+bool FrameSequence::ensureIntroVideoDecoder(QString *error)
+{
+    if (m_introVideoDecoder != nullptr) {
+        return true;
+    }
+
+    m_introVideoDecoder = std::make_unique<VideoFrameDecoder>();
+    if (!m_introVideoDecoder->open(m_assets.clip1.videoPath(m_assets.assetsDir), m_assets.clip1.frameWidth, m_assets.clip1.frameHeight, error)) {
+        m_introVideoDecoder.reset();
+        return false;
+    }
+    return true;
+}
+
+bool FrameSequence::ensureSleepVideoDecoder(QString *error)
+{
+    if (m_sleepVideoDecoder != nullptr) {
+        return true;
+    }
+
+    m_introVideoDecoder.reset();
+    m_sleepVideoDecoder = std::make_unique<VideoFrameDecoder>();
+    if (!m_sleepVideoDecoder->open(m_assets.clip2.videoPath(m_assets.assetsDir), m_assets.clip2.frameWidth, m_assets.clip2.frameHeight, error)) {
+        m_sleepVideoDecoder.reset();
+        return false;
+    }
+    return true;
 }
 
 bool FrameSequence::loadImage(const QString &path, QImage *image, QString *error) const
@@ -60,8 +79,10 @@ bool FrameSequence::loadIntroFrame(int frameNumber, QString *error)
         if (!loadImage(m_assets.clip1.framePath(m_assets.assetsDir, frameNumber), &m_currentImage, error)) {
             return false;
         }
-    } else if (!loadVideoFrame(m_introVideoDecoder.get(), m_assets.clip1, frameNumber, error)) {
-        return false;
+    } else {
+        if (!ensureIntroVideoDecoder(error) || !loadVideoFrame(m_introVideoDecoder.get(), m_assets.clip1, frameNumber, error)) {
+            return false;
+        }
     }
     m_currentClip = &m_assets.clip1;
     m_lastIntroFrame = frameNumber;
@@ -77,8 +98,10 @@ bool FrameSequence::loadSleepFrame(int frameNumber, QString *error)
         if (!loadImage(m_assets.clip2.framePath(m_assets.assetsDir, frameNumber), &m_currentImage, error)) {
             return false;
         }
-    } else if (!loadVideoFrame(m_sleepVideoDecoder.get(), m_assets.clip2, frameNumber, error)) {
-        return false;
+    } else {
+        if (!ensureSleepVideoDecoder(error) || !loadVideoFrame(m_sleepVideoDecoder.get(), m_assets.clip2, frameNumber, error)) {
+            return false;
+        }
     }
     m_currentClip = &m_assets.clip2;
     m_lastSleepFrame = frameNumber;

@@ -17,6 +17,21 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+namespace {
+constexpr int kDefaultDecoderThreadCount = 2;
+constexpr int kMaxDecoderThreadCount = 8;
+
+int decoderThreadCount()
+{
+    bool ok = false;
+    int value = qEnvironmentVariableIntValue("CAT_GATEKEEPER_VIDEO_THREADS", &ok);
+    if (!ok) {
+        return kDefaultDecoderThreadCount;
+    }
+    return std::clamp(value, 1, kMaxDecoderThreadCount);
+}
+}
+
 VideoFrameDecoder::VideoFrameDecoder() = default;
 
 VideoFrameDecoder::~VideoFrameDecoder()
@@ -174,7 +189,7 @@ bool VideoFrameDecoder::reopen(QString *error)
         *error = QStringLiteral("cannot copy decoder parameters for %1: %2").arg(m_path, ffmpegError(result));
         return false;
     }
-    m_codecContext->thread_count = 0;
+    m_codecContext->thread_count = decoderThreadCount();
     m_codecContext->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
 
     result = avcodec_open2(m_codecContext, codec, nullptr);
