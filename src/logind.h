@@ -2,6 +2,15 @@
 #define CAT_GATEKEEPER_LOGIND_H
 
 #include <stdbool.h>
+
+#ifdef _WIN32
+
+struct cgk_logind {
+    int reserved;
+};
+
+#else
+
 #include <systemd/sd-bus.h>
 
 struct cgk_logind {
@@ -9,6 +18,8 @@ struct cgk_logind {
     char session_id[128];
     char session_path[256];
 };
+
+#endif
 
 int cgk_logind_open(struct cgk_logind *logind);
 void cgk_logind_close(struct cgk_logind *logind);

@@ -33,6 +33,21 @@ static char *trim(char *value)
 
 static int config_path(char *path, size_t path_size)
 {
+#ifdef _WIN32
+    const char *appdata = getenv("APPDATA");
+    if (appdata != NULL && appdata[0] != '\0') {
+        int written = snprintf(path, path_size, "%s\\CatGatekeeper\\config.conf", appdata);
+        return written > 0 && (size_t)written < path_size ? 0 : -1;
+    }
+
+    const char *profile = getenv("USERPROFILE");
+    if (profile == NULL || profile[0] == '\0') {
+        return -1;
+    }
+
+    int written = snprintf(path, path_size, "%s\\.config\\cat-gatekeeper\\config.conf", profile);
+    return written > 0 && (size_t)written < path_size ? 0 : -1;
+#else
     const char *xdg_config = getenv("XDG_CONFIG_HOME");
     if (xdg_config != NULL && xdg_config[0] != '\0') {
         int written = snprintf(path, path_size, "%s/cat-gatekeeper/config.conf", xdg_config);
@@ -46,6 +61,7 @@ static int config_path(char *path, size_t path_size)
 
     int written = snprintf(path, path_size, "%s/.config/cat-gatekeeper/config.conf", home);
     return written > 0 && (size_t)written < path_size ? 0 : -1;
+#endif
 }
 
 static enum config_key key_from_name(const char *key)

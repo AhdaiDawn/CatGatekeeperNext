@@ -1,6 +1,10 @@
 #include "OverlayWindow.h"
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#else
 #include <LayerShellQt/Window>
+#endif
 
 #include <QApplication>
 #include <QFont>
@@ -8,6 +12,38 @@
 #include <QPainter>
 #include <QScreen>
 #include <Qt>
+
+#ifdef Q_OS_WIN
+static bool configureWindowsOverlay(QWindow *window, QString *error)
+{
+    HWND handle = reinterpret_cast<HWND>(window->winId());
+    if (handle == NULL) {
+        *error = QStringLiteral("cannot access native window handle");
+        return false;
+    }
+
+    SetLastError(ERROR_SUCCESS);
+    LONG_PTR extendedStyle = GetWindowLongPtrW(handle, GWL_EXSTYLE);
+    if (extendedStyle == 0 && GetLastError() != ERROR_SUCCESS) {
+        *error = QStringLiteral("cannot read native window style");
+        return false;
+    }
+
+    extendedStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+    SetLastError(ERROR_SUCCESS);
+    if (SetWindowLongPtrW(handle, GWL_EXSTYLE, extendedStyle) == 0 && GetLastError() != ERROR_SUCCESS) {
+        *error = QStringLiteral("cannot update native window style");
+        return false;
+    }
+
+    if (!SetWindowPos(handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED)) {
+        *error = QStringLiteral("cannot make overlay topmost");
+        return false;
+    }
+
+    return true;
+}
+#endif
 
 OverlayWindow::OverlayWindow(const ProcessedAssets &assets, int sleepSeconds, QScreen *screen, QWidget *parent)
     : QWidget(parent)
@@ -40,6 +76,11 @@ bool OverlayWindow::initialize(QString *error)
     }
     window->setScreen(m_screen);
 
+#ifdef Q_OS_WIN
+    if (!configureWindowsOverlay(window, error)) {
+        return false;
+    }
+#else
     LayerShellQt::Window *layerWindow = LayerShellQt::Window::get(window);
     if (layerWindow == nullptr) {
         *error = QStringLiteral("cannot create layer-shell window");
@@ -59,6 +100,7 @@ bool OverlayWindow::initialize(QString *error)
     layerWindow->setActivateOnShow(false);
     layerWindow->setScreen(m_screen);
     layerWindow->setDesiredSize(m_screen->geometry().size());
+#endif
 
     if (!m_sequence.prepare(error)) {
         return false;

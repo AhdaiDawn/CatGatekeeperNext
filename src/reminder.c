@@ -1,6 +1,239 @@
 #include "reminder.h"
 #include "log.h"
 
+#ifdef _WIN32
+
+#include <stdio.h>
+#include <string.h>
+#include <windows.h>
+
+unsigned long long cgk_monotonic_ms(void)
+{
+    return (unsigned long long)GetTickCount64();
+}
+
+static int resolve_overlay_path(char *path, size_t path_size)
+{
+    char self_path[PATH_MAX];
+    DWORD length = GetModuleFileNameA(NULL, self_path, (DWORD)sizeof(self_path));
+    if (length == 0) {
+        CGK_DAEMON_LOG("cannot resolve daemon path: Windows error %lu\n", GetLastError());
+        return CGK_EXIT_SOFTWARE;
+    }
+    if (length >= sizeof(self_path)) {
+        CGK_DAEMON_LOG("daemon path is too long\n");
+        return CGK_EXIT_SOFTWARE;
+    }
+
+    char *last_backslash = strrchr(self_path, '\\');
+    char *last_slash = strrchr(self_path, '/');
+    char *last_separator = last_backslash;
+    if (last_separator == NULL || (last_slash != NULL && last_slash > last_separator)) {
+        last_separator = last_slash;
+    }
+    if (last_separator == NULL) {
+        CGK_DAEMON_LOG("daemon path has no executable directory: %s\n", self_path);
+        return CGK_EXIT_SOFTWARE;
+    }
+
+    *last_separator = '\0';
+    int written = snprintf(path, path_size, "%s\\cat-gatekeeper-overlay.exe", self_path);
+    if (written <= 0 || (size_t)written >= path_size) {
+        CGK_DAEMON_LOG("overlay path is too long\n");
+        return CGK_EXIT_SOFTWARE;
+    }
+    return 0;
+}
+
+int cgk_validate_overlay(void)
+{
+    char overlay_path[PATH_MAX];
+    int result = resolve_overlay_path(overlay_path, sizeof(overlay_path));
+    if (result != 0) {
+        return result;
+    }
+
+    DWORD attributes = GetFileAttributesA(overlay_path);
+    if (attributes == INVALID_FILE_ATTRIBUTES) {
+        CGK_DAEMON_LOG("overlay executable does not exist next to daemon: %s\n", overlay_path);
+        return CGK_EXIT_NO_INPUT;
+    }
+    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+        CGK_DAEMON_LOG("overlay executable is not a file: %s\n", overlay_path);
+        return CGK_EXIT_NO_INPUT;
+    }
+    return 0;
+}
+
+int cgk_start_reminder(int sleep_seconds_value, int screen_index_value, struct cgk_reminder *reminder)
+{
+    char overlay_path[PATH_MAX];
+    int result = resolve_overlay_path(overlay_path, sizeof(overlay_path));
+    if (result != 0) {
+        return -1;
+    }
+
+    char command_line[PATH_MAX + 128];
+    int written = snprintf(
+        command_line,
+        sizeof(command_line),
+        "\"%s\" --sleep-seconds %d --screen %d",
+        overlay_path,
+        sleep_seconds_value,
+        screen_index_value);
+    if (written <= 0 || (size_t)written >= sizeof(command_line)) {
+        CGK_DAEMON_LOG("overlay command line is too long\n");
+        return -1;
+    }
+
+    STARTUPINFOA startup_info;
+    PROCESS_INFORMATION process_info;
+    memset(&startup_info, 0, sizeof(startup_info));
+    memset(&process_info, 0, sizeof(process_info));
+    startup_info.cb = sizeof(startup_info);
+
+    BOOL created = CreateProcessA(
+        overlay_path,
+        command_line,
+        NULL,
+        NULL,
+        FALSE,
+        0,
+        NULL,
+        NULL,
+        &startup_info,
+        &process_info);
+    if (!created) {
+        CGK_DAEMON_LOG("cannot start overlay %s: Windows error %lu\n", overlay_path, GetLastError());
+        return -1;
+    }
+
+    CloseHandle(process_info.hThread);
+
+    memset(reminder, 0, sizeof(*reminder));
+    reminder->process = process_info.hProcess;
+    reminder->pid = process_info.dwProcessId;
+    reminder->deadline_ms = cgk_monotonic_ms() + (unsigned long long)(sleep_seconds_value + 30) * 1000ULL;
+    reminder->kill_deadline_ms = 0;
+    reminder->term_sent = false;
+
+    CGK_DAEMON_LOG("started overlay pid %lu on screen %d\n", (unsigned long)reminder->pid, screen_index_value);
+    return 0;
+}
+
+struct close_windows_context {
+    DWORD pid;
+    unsigned int count;
+};
+
+static BOOL CALLBACK close_process_window(HWND window, LPARAM parameter)
+{
+    struct close_windows_context *context = (struct close_windows_context *)parameter;
+    DWORD window_pid = 0;
+    GetWindowThreadProcessId(window, &window_pid);
+    if (window_pid == context->pid) {
+        PostMessageW(window, WM_CLOSE, 0, 0);
+        context->count++;
+    }
+    return TRUE;
+}
+
+static void request_process_exit(struct cgk_reminder *reminder)
+{
+    if (reminder->process == NULL || reminder->pid == 0) {
+        return;
+    }
+
+    struct close_windows_context context = {
+        .pid = reminder->pid,
+        .count = 0,
+    };
+    EnumWindows(close_process_window, (LPARAM)&context);
+}
+
+static bool reap_if_finished(struct cgk_reminder *reminder)
+{
+    if (reminder->process == NULL) {
+        return true;
+    }
+
+    DWORD wait_result = WaitForSingleObject(reminder->process, 0);
+    if (wait_result == WAIT_TIMEOUT) {
+        return false;
+    }
+
+    if (wait_result != WAIT_OBJECT_0) {
+        CGK_DAEMON_LOG("cannot wait for overlay pid %lu: Windows error %lu\n", (unsigned long)reminder->pid, GetLastError());
+        CloseHandle(reminder->process);
+        reminder->process = NULL;
+        reminder->pid = 0;
+        return true;
+    }
+
+    DWORD exit_code = 0;
+    if (!GetExitCodeProcess(reminder->process, &exit_code)) {
+        CGK_DAEMON_LOG("cannot read overlay exit code: Windows error %lu\n", GetLastError());
+    } else if (exit_code == 0) {
+        CGK_DAEMON_LOG("overlay finished\n");
+    } else {
+        CGK_DAEMON_LOG("overlay exited with code %lu\n", (unsigned long)exit_code);
+    }
+
+    CloseHandle(reminder->process);
+    reminder->process = NULL;
+    reminder->pid = 0;
+    return true;
+}
+
+bool cgk_poll_reminder(struct cgk_reminder *reminder)
+{
+    if (reap_if_finished(reminder)) {
+        return true;
+    }
+
+    unsigned long long now = cgk_monotonic_ms();
+    if (!reminder->term_sent && now >= reminder->deadline_ms) {
+        CGK_DAEMON_LOG("overlay timed out; requesting close\n");
+        request_process_exit(reminder);
+        reminder->term_sent = true;
+        reminder->kill_deadline_ms = now + 2000ULL;
+        return false;
+    }
+
+    if (reminder->term_sent && now >= reminder->kill_deadline_ms) {
+        CGK_DAEMON_LOG("overlay did not exit after close request; terminating process\n");
+        TerminateProcess(reminder->process, 1);
+        WaitForSingleObject(reminder->process, 1000);
+        reap_if_finished(reminder);
+        return true;
+    }
+
+    return false;
+}
+
+void cgk_stop_reminder(struct cgk_reminder *reminder)
+{
+    if (reminder->process == NULL) {
+        return;
+    }
+
+    request_process_exit(reminder);
+    unsigned long long deadline = cgk_monotonic_ms() + 2000ULL;
+    while (cgk_monotonic_ms() < deadline) {
+        if (reap_if_finished(reminder)) {
+            return;
+        }
+        Sleep(50);
+    }
+
+    TerminateProcess(reminder->process, 1);
+    while (!reap_if_finished(reminder)) {
+        Sleep(50);
+    }
+}
+
+#else
+
 #include <errno.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -197,3 +430,5 @@ void cgk_stop_reminder(struct cgk_reminder *reminder)
         nanosleep(&wait_time, NULL);
     }
 }
+
+#endif
