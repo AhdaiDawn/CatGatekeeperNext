@@ -161,7 +161,6 @@ log "creating portable directory $package_dir"
 rm -rf "$package_dir"
 mkdir -p \
     "$package_dir/bin" \
-    "$package_dir/config" \
     "$package_dir/lib" \
     "$package_dir/logs"
 
@@ -171,7 +170,7 @@ install -m 0755 \
     "$build_dir/cat-gatekeeper-overlay" \
     "$package_dir/bin/"
 
-cat > "$package_dir/config/settings.conf" <<'EOF'
+cat > "$package_dir/settings.conf" <<'EOF'
 interval_minutes=30
 sleep_seconds=300
 idle_reset_seconds=0
@@ -186,7 +185,7 @@ cgk_die() {
 }
 
 cgk_app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cgk_settings_file="$cgk_app_dir/config/settings.conf"
+cgk_settings_file="$cgk_app_dir/settings.conf"
 cgk_config_home="$cgk_app_dir/config-home"
 cgk_config_file="$cgk_config_home/cat-gatekeeper/config.conf"
 cgk_log_file="$cgk_app_dir/logs/cat-gatekeeperd.log"
@@ -195,7 +194,7 @@ cgk_prepare_config() {
     [ -x "$cgk_app_dir/bin/cat-gatekeeperd" ] || cgk_die "missing bin/cat-gatekeeperd"
     [ -x "$cgk_app_dir/bin/cat-gatekeeperctl" ] || cgk_die "missing bin/cat-gatekeeperctl"
     [ -x "$cgk_app_dir/bin/cat-gatekeeper-overlay" ] || cgk_die "missing bin/cat-gatekeeper-overlay"
-    [ -r "$cgk_settings_file" ] || cgk_die "missing config/settings.conf"
+    [ -r "$cgk_settings_file" ] || cgk_die "missing settings.conf"
 
     mkdir -p \
         "$cgk_app_dir/logs" \
@@ -296,8 +295,7 @@ Control:
   ./start.sh dismiss
   ./start.sh quit
 
-Settings: config/settings.conf
-Generated config: config-home/cat-gatekeeper/config.conf
+Settings: settings.conf
 
 Idea: https://x.com/konekone2026/status/2048215520965709940
 Thanks to @konekone2026.

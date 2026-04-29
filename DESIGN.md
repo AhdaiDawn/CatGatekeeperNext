@@ -144,7 +144,7 @@ dist/cat-gatekeeper-portable-<version>-<arch>.tar.gz
 The portable package contains:
 
 - `bin/`
-- `config/settings.conf`
+- `settings.conf`
 - `start.sh`
 - `README-portable.txt`
 
