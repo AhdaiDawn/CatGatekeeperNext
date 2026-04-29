@@ -34,9 +34,9 @@ private:
     bool reopen(QString *error);
     bool rewind(QString *error);
     bool decodeNextFrame(bool compose, QImage *image, QString *error);
-    bool composeSideBySideFrame(QImage *image, QString *error);
-    bool convertSideBySideFrame(QString *error);
-    bool halfFrameData(bool rightHalf, const uchar *data[4], int linesize[4], QString *error) const;
+    bool convertFrame(QString *error);
+    bool prepareConverter(int sourceFormat, QString *error);
+    bool composeFrame(QImage *image, QString *error);
     QString ffmpegError(int code) const;
 
     QString m_path;
@@ -54,13 +54,10 @@ private:
     AVFormatContext *m_formatContext = nullptr;
     AVCodecContext *m_codecContext = nullptr;
     AVFrame *m_frame = nullptr;
-    AVFrame *m_colorFrame = nullptr;
-    AVFrame *m_alphaFrame = nullptr;
+    AVFrame *m_bgraFrame = nullptr;
     AVPacket *m_packet = nullptr;
-    SwsContext *m_colorSwsContext = nullptr;
-    SwsContext *m_alphaSwsContext = nullptr;
-    QVector<uchar> m_colorBuffer;
-    QVector<uchar> m_alphaBuffer;
+    SwsContext *m_swsContext = nullptr;
+    QVector<uchar> m_bgraBuffer;
 };
 
 #endif

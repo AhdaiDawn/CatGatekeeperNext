@@ -13,7 +13,7 @@ Runtime:
 - `systemd-libs`
 - `qt6-base`
 - `layer-shell-qt`
-- FFmpeg libraries
+- FFmpeg libraries with the `libvpx-vp9` decoder
 
 Build:
 
@@ -39,7 +39,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
-`assets/processed/` is generated from `assets/source/` and is not tracked by Git. The `just build`, `just release`, `just check`, and `just package` commands regenerate it when needed.
+`assets/processed/manifest.conf` is generated from `assets/source/` and is not tracked by Git. The `just build`, `just release`, `just check`, and `just package` commands regenerate it when needed.
 
 Outputs:
 

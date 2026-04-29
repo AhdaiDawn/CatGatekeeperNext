@@ -1,7 +1,7 @@
 <RCC>
   <qresource prefix="/cat-gatekeeper/processed">
     <file alias="manifest.conf">../assets/processed/manifest.conf</file>
-    <file alias="neko1.webm">../assets/processed/neko1.webm</file>
-    <file alias="neko2.webm">../assets/processed/neko2.webm</file>
+    <file alias="neko1.webm">../assets/source/neko1.webm</file>
+    <file alias="neko2.webm">../assets/source/neko2.webm</file>
   </qresource>
 </RCC>

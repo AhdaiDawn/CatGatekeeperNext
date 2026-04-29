@@ -22,8 +22,8 @@ find_package(LayerShellQt REQUIRED)
 
 set(CAT_GATEKEEPER_BUNDLED_ASSETS
   "${CMAKE_CURRENT_SOURCE_DIR}/assets/processed/manifest.conf"
-  "${CMAKE_CURRENT_SOURCE_DIR}/assets/processed/neko1.webm"
-  "${CMAKE_CURRENT_SOURCE_DIR}/assets/processed/neko2.webm"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/source/neko1.webm"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/source/neko2.webm"
 )
 
 foreach(asset IN LISTS CAT_GATEKEEPER_BUNDLED_ASSETS)

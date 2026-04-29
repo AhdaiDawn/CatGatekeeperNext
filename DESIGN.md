@@ -21,7 +21,7 @@ Required runtime libraries:
 - `libsystemd`
 - Qt 6 Widgets
 - LayerShellQt
-- FFmpeg/libav
+- FFmpeg/libav with `libvpx-vp9`
 
 ## Build
 
@@ -41,11 +41,9 @@ That script writes:
 
 ```text
 assets/processed/manifest.conf
-assets/processed/neko1.webm
-assets/processed/neko2.webm
 ```
 
-Those files are embedded into `cat-gatekeeper-overlay` with Qt resource files. They are not installed or packaged as external runtime files.
+The manifest describes the alpha WebM files in `assets/source/`. The manifest and source videos are embedded into `cat-gatekeeper-overlay` with Qt resource files. They are not installed or packaged as external runtime files.
 
 ## Timer
 
@@ -125,9 +123,8 @@ cat-gatekeeper-overlay --sleep-seconds <seconds> --screen primary
 
 The overlay:
 
-- loads embedded processed assets;
-- decodes side-by-side WebM frames with FFmpeg;
-- treats the left half as color and the right half as alpha;
+- loads embedded alpha WebM assets;
+- decodes VP9 alpha frames with FFmpeg/libvpx;
 - draws a full-screen layer-shell overlay;
 - passes mouse input through to windows below it;
 - exits after the intro plus `sleep_seconds`.

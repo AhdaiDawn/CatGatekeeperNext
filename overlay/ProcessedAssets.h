@@ -5,7 +5,7 @@
 
 enum class AssetFormat {
     PngSequence,
-    VideoSideBySide,
+    VideoAlpha,
 };
 
 struct ClipInfo {

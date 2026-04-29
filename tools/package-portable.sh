@@ -127,6 +127,8 @@ if [ "$skip_build" -eq 0 ] && [ "$skip_assets" -eq 0 ]; then
     need_assets=0
     if [ ! -f "$assets_manifest" ]; then
         need_assets=1
+    elif [ "$project_root/tools/preprocess-assets.sh" -nt "$assets_manifest" ]; then
+        need_assets=1
     else
         while IFS= read -r -d '' source_file; do
             if [ "$source_file" -nt "$assets_manifest" ]; then
@@ -258,7 +260,7 @@ Required runtime libraries:
 - systemd-libs
 - qt6-base
 - layer-shell-qt
-- ffmpeg libraries
+- ffmpeg libraries with the libvpx-vp9 decoder
 
 Start:
   ./start.sh

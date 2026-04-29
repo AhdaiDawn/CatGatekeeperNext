@@ -10,8 +10,10 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/dict.h>
 #include <libavutil/error.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/log.h>
 #include <libavutil/mem.h>
 #include <libavutil/pixdesc.h>
 #include <libswscale/swscale.h>
@@ -30,9 +32,33 @@ int decoderThreadCount()
     }
     return std::clamp(value, 1, kMaxDecoderThreadCount);
 }
+
+bool streamHasAlpha(const AVStream *stream)
+{
+    if (stream == nullptr) {
+        return false;
+    }
+
+    const AVDictionaryEntry *entry = av_dict_get(stream->metadata, "alpha_mode", nullptr, 0);
+    return entry != nullptr && std::strcmp(entry->value, "1") == 0;
 }
 
-VideoFrameDecoder::VideoFrameDecoder() = default;
+const AVCodec *findDecoder(const AVStream *stream)
+{
+    if (stream != nullptr && stream->codecpar != nullptr && stream->codecpar->codec_id == AV_CODEC_ID_VP9 && streamHasAlpha(stream)) {
+        return avcodec_find_decoder_by_name("libvpx-vp9");
+    }
+    if (stream == nullptr || stream->codecpar == nullptr) {
+        return nullptr;
+    }
+    return avcodec_find_decoder(stream->codecpar->codec_id);
+}
+}
+
+VideoFrameDecoder::VideoFrameDecoder()
+{
+    av_log_set_level(AV_LOG_ERROR);
+}
 
 VideoFrameDecoder::~VideoFrameDecoder()
 {
@@ -172,8 +198,13 @@ bool VideoFrameDecoder::reopen(QString *error)
     m_videoStream = result;
 
     AVStream *stream = m_formatContext->streams[m_videoStream];
-    const AVCodec *codec = avcodec_find_decoder(stream->codecpar->codec_id);
+    const bool requiresAlphaDecoder = streamHasAlpha(stream) && stream->codecpar->codec_id == AV_CODEC_ID_VP9;
+    const AVCodec *codec = findDecoder(stream);
     if (codec == nullptr) {
+        if (requiresAlphaDecoder) {
+            *error = QStringLiteral("VP9 alpha video requires the FFmpeg libvpx-vp9 decoder for %1").arg(m_path);
+            return false;
+        }
         *error = QStringLiteral("cannot find decoder for %1").arg(m_path);
         return false;
     }
@@ -200,10 +231,10 @@ bool VideoFrameDecoder::reopen(QString *error)
 
     m_videoWidth = m_codecContext->width;
     m_videoHeight = m_codecContext->height;
-    if (m_videoWidth != m_frameWidth * 2 || m_videoHeight != m_frameHeight) {
+    if (m_videoWidth != m_frameWidth || m_videoHeight != m_frameHeight) {
         *error = QStringLiteral("video %1 must be %2x%3, got %4x%5")
                      .arg(m_path)
-                     .arg(m_frameWidth * 2)
+                     .arg(m_frameWidth)
                      .arg(m_frameHeight)
                      .arg(m_videoWidth)
                      .arg(m_videoHeight);
@@ -211,57 +242,22 @@ bool VideoFrameDecoder::reopen(QString *error)
     }
 
     m_frame = av_frame_alloc();
-    m_colorFrame = av_frame_alloc();
-    m_alphaFrame = av_frame_alloc();
+    m_bgraFrame = av_frame_alloc();
     m_packet = av_packet_alloc();
-    if (m_frame == nullptr || m_colorFrame == nullptr || m_alphaFrame == nullptr || m_packet == nullptr) {
+    if (m_frame == nullptr || m_bgraFrame == nullptr || m_packet == nullptr) {
         *error = QStringLiteral("cannot allocate video frame buffers for %1").arg(m_path);
         return false;
     }
 
-    int colorBufferSize = av_image_get_buffer_size(AV_PIX_FMT_BGRA, m_frameWidth, m_frameHeight, 1);
-    int alphaBufferSize = av_image_get_buffer_size(AV_PIX_FMT_GRAY8, m_frameWidth, m_frameHeight, 1);
-    if (colorBufferSize <= 0 || alphaBufferSize <= 0) {
+    int bgraBufferSize = av_image_get_buffer_size(AV_PIX_FMT_BGRA, m_frameWidth, m_frameHeight, 1);
+    if (bgraBufferSize <= 0) {
         *error = QStringLiteral("cannot size conversion buffers for %1").arg(m_path);
         return false;
     }
-    m_colorBuffer.resize(colorBufferSize);
-    m_alphaBuffer.resize(alphaBufferSize);
-    result = av_image_fill_arrays(m_colorFrame->data, m_colorFrame->linesize, m_colorBuffer.data(), AV_PIX_FMT_BGRA, m_frameWidth, m_frameHeight, 1);
+    m_bgraBuffer.resize(bgraBufferSize);
+    result = av_image_fill_arrays(m_bgraFrame->data, m_bgraFrame->linesize, m_bgraBuffer.data(), AV_PIX_FMT_BGRA, m_frameWidth, m_frameHeight, 1);
     if (result < 0) {
-        *error = QStringLiteral("cannot prepare color buffer for %1: %2").arg(m_path, ffmpegError(result));
-        return false;
-    }
-    result = av_image_fill_arrays(m_alphaFrame->data, m_alphaFrame->linesize, m_alphaBuffer.data(), AV_PIX_FMT_GRAY8, m_frameWidth, m_frameHeight, 1);
-    if (result < 0) {
-        *error = QStringLiteral("cannot prepare alpha buffer for %1: %2").arg(m_path, ffmpegError(result));
-        return false;
-    }
-
-    m_colorSwsContext = sws_getContext(
-        m_frameWidth,
-        m_frameHeight,
-        m_codecContext->pix_fmt,
-        m_frameWidth,
-        m_frameHeight,
-        AV_PIX_FMT_BGRA,
-        SWS_FAST_BILINEAR,
-        nullptr,
-        nullptr,
-        nullptr);
-    m_alphaSwsContext = sws_getContext(
-        m_frameWidth,
-        m_frameHeight,
-        m_codecContext->pix_fmt,
-        m_frameWidth,
-        m_frameHeight,
-        AV_PIX_FMT_GRAY8,
-        SWS_FAST_BILINEAR,
-        nullptr,
-        nullptr,
-        nullptr);
-    if (m_colorSwsContext == nullptr || m_alphaSwsContext == nullptr) {
-        *error = QStringLiteral("cannot create pixel converters for %1").arg(m_path);
+        *error = QStringLiteral("cannot prepare BGRA buffer for %1: %2").arg(m_path, ffmpegError(result));
         return false;
     }
 
@@ -272,22 +268,15 @@ bool VideoFrameDecoder::reopen(QString *error)
 
 void VideoFrameDecoder::close()
 {
-    if (m_alphaSwsContext != nullptr) {
-        sws_freeContext(m_alphaSwsContext);
-        m_alphaSwsContext = nullptr;
-    }
-    if (m_colorSwsContext != nullptr) {
-        sws_freeContext(m_colorSwsContext);
-        m_colorSwsContext = nullptr;
+    if (m_swsContext != nullptr) {
+        sws_freeContext(m_swsContext);
+        m_swsContext = nullptr;
     }
     if (m_packet != nullptr) {
         av_packet_free(&m_packet);
     }
-    if (m_alphaFrame != nullptr) {
-        av_frame_free(&m_alphaFrame);
-    }
-    if (m_colorFrame != nullptr) {
-        av_frame_free(&m_colorFrame);
+    if (m_bgraFrame != nullptr) {
+        av_frame_free(&m_bgraFrame);
     }
     if (m_frame != nullptr) {
         av_frame_free(&m_frame);
@@ -301,8 +290,7 @@ void VideoFrameDecoder::close()
     if (m_ioContext != nullptr) {
         avio_context_free(&m_ioContext);
     }
-    m_alphaBuffer.clear();
-    m_colorBuffer.clear();
+    m_bgraBuffer.clear();
     m_inputBytes.clear();
     m_inputOffset = 0;
     m_videoStream = -1;
@@ -364,12 +352,12 @@ bool VideoFrameDecoder::decodeNextFrame(bool compose, QImage *image, QString *er
         if (result == 0) {
             m_currentFrame++;
             if (compose) {
-                if (!convertSideBySideFrame(error)) {
+                if (!convertFrame(error)) {
                     av_frame_unref(m_frame);
                     return false;
                 }
                 av_frame_unref(m_frame);
-                return composeSideBySideFrame(image, error);
+                return composeFrame(image, error);
             }
             av_frame_unref(m_frame);
             return true;
@@ -419,69 +407,66 @@ bool VideoFrameDecoder::decodeNextFrame(bool compose, QImage *image, QString *er
     }
 }
 
-bool VideoFrameDecoder::halfFrameData(bool rightHalf, const uchar *data[4], int linesize[4], QString *error) const
+bool VideoFrameDecoder::prepareConverter(int sourceFormat, QString *error)
 {
-    for (int i = 0; i < 4; i++) {
-        data[i] = m_frame->data[i];
-        linesize[i] = m_frame->linesize[i];
-    }
-
-    if (!rightHalf) {
+    if (m_swsContext != nullptr) {
         return true;
     }
 
-    const AVPixelFormat format = static_cast<AVPixelFormat>(m_frame->format);
-    const AVPixFmtDescriptor *descriptor = av_pix_fmt_desc_get(format);
-    if (descriptor == nullptr || (descriptor->flags & AV_PIX_FMT_FLAG_PLANAR) == 0 || descriptor->nb_components < 3) {
-        *error = QStringLiteral("unsupported side-by-side pixel format in %1").arg(m_path);
+    AVPixelFormat pixelFormat = static_cast<AVPixelFormat>(sourceFormat);
+    const AVPixFmtDescriptor *descriptor = av_pix_fmt_desc_get(pixelFormat);
+    if (descriptor == nullptr || (descriptor->flags & AV_PIX_FMT_FLAG_ALPHA) == 0) {
+        *error = QStringLiteral("video %1 decoded without alpha; ensure FFmpeg has libvpx-vp9").arg(m_path);
         return false;
     }
 
-    for (int i = 0; i < 3; i++) {
-        if (data[i] == nullptr) {
-            *error = QStringLiteral("missing video plane in %1").arg(m_path);
-            return false;
-        }
+    m_swsContext = sws_getContext(
+        m_frameWidth,
+        m_frameHeight,
+        pixelFormat,
+        m_frameWidth,
+        m_frameHeight,
+        AV_PIX_FMT_BGRA,
+        SWS_FAST_BILINEAR,
+        nullptr,
+        nullptr,
+        nullptr);
+    if (m_swsContext == nullptr) {
+        *error = QStringLiteral("cannot create pixel converter for %1").arg(m_path);
+        return false;
     }
 
-    const int lumaBytes = (descriptor->comp[0].depth + 7) / 8;
-    const int chromaBytes = (descriptor->comp[1].depth + 7) / 8;
-    data[0] += static_cast<qsizetype>(m_frameWidth) * lumaBytes;
-    data[1] += static_cast<qsizetype>(m_frameWidth >> descriptor->log2_chroma_w) * chromaBytes;
-    data[2] += static_cast<qsizetype>(m_frameWidth >> descriptor->log2_chroma_w) * chromaBytes;
     return true;
 }
 
-bool VideoFrameDecoder::convertSideBySideFrame(QString *error)
+bool VideoFrameDecoder::convertFrame(QString *error)
 {
-    const uchar *colorData[4] = {};
-    int colorLinesize[4] = {};
-    const uchar *alphaData[4] = {};
-    int alphaLinesize[4] = {};
-    if (!halfFrameData(false, colorData, colorLinesize, error) || !halfFrameData(true, alphaData, alphaLinesize, error)) {
+    if (m_frame->width != m_frameWidth || m_frame->height != m_frameHeight) {
+        *error = QStringLiteral("decoded frame %1 must be %2x%3, got %4x%5")
+                     .arg(m_path)
+                     .arg(m_frameWidth)
+                     .arg(m_frameHeight)
+                     .arg(m_frame->width)
+                     .arg(m_frame->height);
+        return false;
+    }
+
+    if (!prepareConverter(m_frame->format, error)) {
         return false;
     }
 
     sws_scale(
-        m_colorSwsContext,
-        colorData,
-        colorLinesize,
+        m_swsContext,
+        m_frame->data,
+        m_frame->linesize,
         0,
         m_frameHeight,
-        m_colorFrame->data,
-        m_colorFrame->linesize);
-    sws_scale(
-        m_alphaSwsContext,
-        alphaData,
-        alphaLinesize,
-        0,
-        m_frameHeight,
-        m_alphaFrame->data,
-        m_alphaFrame->linesize);
+        m_bgraFrame->data,
+        m_bgraFrame->linesize);
     return true;
 }
 
-bool VideoFrameDecoder::composeSideBySideFrame(QImage *image, QString *error)
+bool VideoFrameDecoder::composeFrame(QImage *image, QString *error)
 {
     QImage composed(m_frameWidth, m_frameHeight, QImage::Format_ARGB32_Premultiplied);
     if (composed.isNull()) {
@@ -490,13 +475,12 @@ bool VideoFrameDecoder::composeSideBySideFrame(QImage *image, QString *error)
     }
 
     for (int y = 0; y < m_frameHeight; y++) {
-        const uchar *color = m_colorFrame->data[0] + y * m_colorFrame->linesize[0];
-        const uchar *alpha = m_alphaFrame->data[0] + y * m_alphaFrame->linesize[0];
+        const uchar *color = m_bgraFrame->data[0] + y * m_bgraFrame->linesize[0];
         uchar *out = composed.scanLine(y);
 
         for (int x = 0; x < m_frameWidth; x++) {
             const int colorOffset = x * 4;
-            int a = alpha[x];
+            int a = color[colorOffset + 3];
             out[colorOffset + 0] = static_cast<uchar>((color[colorOffset + 0] * a + 127) / 255);
             out[colorOffset + 1] = static_cast<uchar>((color[colorOffset + 1] * a + 127) / 255);
             out[colorOffset + 2] = static_cast<uchar>((color[colorOffset + 2] * a + 127) / 255);

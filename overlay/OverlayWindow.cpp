@@ -114,6 +114,12 @@ void OverlayWindow::paintEvent(QPaintEvent *event)
         static_cast<qreal>(clip.frameWidth) * scale,
         static_cast<qreal>(clip.frameHeight) * scale);
 
+    constexpr qint64 introSlideMs = 3000;
+    if (clip.name == m_assets.clip1.name && m_elapsed.elapsed() < introSlideMs) {
+        qreal progress = static_cast<qreal>(m_elapsed.elapsed()) / static_cast<qreal>(introSlideMs);
+        target.translate(drawnCanvas.width() * (1.0 - progress), 0.0);
+    }
+
     drawCountdown(&painter, canvasTopLeft, drawnCanvas, scale);
 
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);

@@ -141,15 +141,15 @@ static bool loadAssets(const QString &assetsDir, ProcessedAssets *assets, QStrin
 
         if (key == QLatin1String("version")) {
             int version = 0;
-            if (!parseInt(value, 1, 2, &version)) {
+            if (!parseInt(value, 1, 3, &version)) {
                 *error = QStringLiteral("invalid version");
                 return false;
             }
         } else if (key == QLatin1String("asset_format")) {
             if (value == QLatin1String("png_sequence")) {
                 assets->format = AssetFormat::PngSequence;
-            } else if (value == QLatin1String("video_side_by_side")) {
-                assets->format = AssetFormat::VideoSideBySide;
+            } else if (value == QLatin1String("video_alpha")) {
+                assets->format = AssetFormat::VideoAlpha;
             } else {
                 *error = QStringLiteral("invalid asset_format");
                 return false;

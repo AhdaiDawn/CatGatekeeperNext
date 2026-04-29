@@ -9,10 +9,7 @@ processed_dir="$project_dir/assets/processed"
 fps=30
 canvas_width=1920
 canvas_height=1080
-matte_threshold=32
-matte_feather=0.7
 background_opacity=0.38
-intro_slide_seconds=3
 
 require_file() {
   local path=$1
@@ -30,6 +27,22 @@ require_command() {
   fi
 }
 
+stream_value() {
+  local path=$1
+  local entry=$2
+  ffprobe -v error -select_streams v:0 \
+    -show_entries "stream=${entry}" \
+    -of default=noprint_wrappers=1:nokey=1 "$path"
+}
+
+stream_tag_value() {
+  local path=$1
+  local tag=$2
+  ffprobe -v error -select_streams v:0 \
+    -show_entries "stream_tags=${tag}" \
+    -of default=noprint_wrappers=1:nokey=1 "$path"
+}
+
 count_video_frames() {
   local path=$1
   ffprobe -v error -count_frames -select_streams v:0 \
@@ -37,66 +50,50 @@ count_video_frames() {
     -of default=noprint_wrappers=1:nokey=1 "$path"
 }
 
-outline_matte_filter() {
-  local right=$((canvas_width - 1))
-  local bottom=$((canvas_height - 1))
-  printf '[0:v]fps=%s,format=rgba,split[base][masksrc];' "$fps"
-  printf '[masksrc]format=gray,lut='"'"'if(lte(val,%s),0,255)'"'"',' "$matte_threshold"
-  printf 'floodfill=x=0:y=0:s0=0:d0=128,'
-  printf 'floodfill=x=%s:y=0:s0=0:d0=128,' "$right"
-  printf 'floodfill=x=0:y=%s:s0=0:d0=128,' "$bottom"
-  printf 'floodfill=x=%s:y=%s:s0=0:d0=128,' "$right" "$bottom"
-  printf 'lut='"'"'if(eq(val,128),0,255)'"'"',gblur=sigma=%s[alpha];' "$matte_feather"
-  printf '[base][alpha]alphamerge,format=rgba'
-}
+validate_alpha_webm() {
+  local path=$1
+  local width height rate alpha_mode
 
-side_by_side_filter() {
-  local mode=$1
-  printf '%s' "$(outline_matte_filter)"
-  if [[ "$mode" == "slide-in" ]]; then
-    printf '[matte];'
-    printf 'color=c=black@0:s=%sx%s:r=%s,format=rgba[blank];' "$canvas_width" "$canvas_height" "$fps"
-    printf '[blank][matte]overlay=x='"'"'if(lt(t\\,%s)\\,%s*(1-t/%s)\\,0)'"'"':y=0:shortest=1:format=auto,format=rgba,' \
-      "$intro_slide_seconds" "$canvas_width" "$intro_slide_seconds"
-  else
-    printf ','
+  width=$(stream_value "$path" width)
+  height=$(stream_value "$path" height)
+  rate=$(stream_value "$path" avg_frame_rate)
+  alpha_mode=$(stream_tag_value "$path" alpha_mode)
+
+  if [[ "$width" != "$canvas_width" || "$height" != "$canvas_height" ]]; then
+    printf '%s must be %sx%s, got %sx%s\n' "$path" "$canvas_width" "$canvas_height" "$width" "$height" >&2
+    exit 1
   fi
-  printf 'split[color_src][alpha_src];'
-  printf '[color_src]format=rgb24[color];'
-  printf '[alpha_src]alphaextract,format=gray,format=rgb24[alpha];'
-  printf '[color][alpha]hstack=inputs=2,format=yuv420p'
+  if [[ "$rate" != "$fps/1" ]]; then
+    printf '%s must be %s fps, got %s\n' "$path" "$fps" "$rate" >&2
+    exit 1
+  fi
+  if [[ "$alpha_mode" != "1" ]]; then
+    printf '%s must be VP9 WebM with alpha_mode=1\n' "$path" >&2
+    exit 1
+  fi
 }
 
-require_command ffmpeg
 require_command ffprobe
-require_command du
 require_file "$source_dir/neko1.webm"
 require_file "$source_dir/neko2.webm"
+
+validate_alpha_webm "$source_dir/neko1.webm"
+validate_alpha_webm "$source_dir/neko2.webm"
 
 rm -rf "$processed_dir"
 mkdir -p "$processed_dir"
 
-ffmpeg -y -hide_banner -loglevel error -i "$source_dir/neko1.webm" -an \
-  -filter_complex "$(side_by_side_filter slide-in)" \
-  -c:v libvpx-vp9 -pix_fmt yuv420p -crf 22 -b:v 0 -deadline good -row-mt 1 \
-  "$processed_dir/neko1.webm"
-
-ffmpeg -y -hide_banner -loglevel error -i "$source_dir/neko2.webm" -an \
-  -filter_complex "$(side_by_side_filter static)" \
-  -c:v libvpx-vp9 -pix_fmt yuv420p -crf 22 -b:v 0 -deadline good -row-mt 1 \
-  "$processed_dir/neko2.webm"
-
-clip1_frames=$(count_video_frames "$processed_dir/neko1.webm")
-clip2_frames=$(count_video_frames "$processed_dir/neko2.webm")
+clip1_frames=$(count_video_frames "$source_dir/neko1.webm")
+clip2_frames=$(count_video_frames "$source_dir/neko2.webm")
 
 if [[ "$clip1_frames" -le 0 || "$clip2_frames" -le 0 ]]; then
-  printf 'ffmpeg did not generate both videos\n' >&2
+  printf 'ffprobe did not count both videos\n' >&2
   exit 1
 fi
 
 cat >"$processed_dir/manifest.conf" <<EOF
-version=2
-asset_format=video_side_by_side
+version=3
+asset_format=video_alpha
 fps=${fps}
 width=${canvas_width}
 height=${canvas_height}
@@ -120,5 +117,4 @@ clip2_offset_x=0
 clip2_offset_y=0
 EOF
 
-printf 'Generated side-by-side videos: neko1=%s frames, neko2=%s frames.\n' "$clip1_frames" "$clip2_frames"
-du -sh "$processed_dir"
+printf 'Generated manifest for alpha WebM assets: neko1=%s frames, neko2=%s frames.\n' "$clip1_frames" "$clip2_frames"
