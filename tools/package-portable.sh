@@ -161,7 +161,6 @@ log "creating portable directory $package_dir"
 rm -rf "$package_dir"
 mkdir -p \
     "$package_dir/bin" \
-    "$package_dir/lib" \
     "$package_dir/logs"
 
 install -m 0755 \
@@ -176,51 +175,23 @@ sleep_seconds=300
 idle_reset_seconds=0
 EOF
 
-cat > "$package_dir/lib/portable-common.sh" <<'EOF'
-#!/usr/bin/env bash
-
-cgk_die() {
-    printf 'cat-gatekeeper: %s\n' "$*" >&2
-    exit 1
-}
-
-cgk_app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cgk_settings_file="$cgk_app_dir/settings.conf"
-cgk_config_home="$cgk_app_dir/config-home"
-cgk_config_file="$cgk_config_home/cat-gatekeeper/config.conf"
-cgk_log_file="$cgk_app_dir/logs/cat-gatekeeperd.log"
-
-cgk_prepare_config() {
-    [ -x "$cgk_app_dir/bin/cat-gatekeeperd" ] || cgk_die "missing bin/cat-gatekeeperd"
-    [ -x "$cgk_app_dir/bin/cat-gatekeeperctl" ] || cgk_die "missing bin/cat-gatekeeperctl"
-    [ -x "$cgk_app_dir/bin/cat-gatekeeper-overlay" ] || cgk_die "missing bin/cat-gatekeeper-overlay"
-    [ -r "$cgk_settings_file" ] || cgk_die "missing settings.conf"
-
-    mkdir -p \
-        "$cgk_app_dir/logs" \
-        "$cgk_config_home/cat-gatekeeper"
-
-    cp "$cgk_settings_file" "$cgk_config_file"
-}
-
-cgk_export_env() {
-    export XDG_CONFIG_HOME="$cgk_config_home"
-    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
-}
-
-cgk_run_ctl() {
-    cgk_prepare_config
-    cgk_export_env
-    "$cgk_app_dir/bin/cat-gatekeeperctl" "$@"
-}
-EOF
-
 cat > "$package_dir/start.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$script_dir/lib/portable-common.sh"
+app_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+daemon="$app_dir/bin/cat-gatekeeperd"
+ctl="$app_dir/bin/cat-gatekeeperctl"
+overlay="$app_dir/bin/cat-gatekeeper-overlay"
+settings="$app_dir/settings.conf"
+config_home="$app_dir/config-home"
+config_file="$config_home/cat-gatekeeper/config.conf"
+log_file="$app_dir/logs/cat-gatekeeperd.log"
+
+die() {
+    printf 'cat-gatekeeper: %s\n' "$*" >&2
+    exit 1
+}
 
 usage() {
     cat <<EOF_USAGE
@@ -231,43 +202,49 @@ Usage:
 EOF_USAGE
 }
 
-foreground=0
-case "${1:-start}" in
+prepare() {
+    [ -x "$daemon" ] || die "missing bin/cat-gatekeeperd"
+    [ -x "$ctl" ] || die "missing bin/cat-gatekeeperctl"
+    [ -x "$overlay" ] || die "missing bin/cat-gatekeeper-overlay"
+    [ -r "$settings" ] || die "missing settings.conf"
+
+    mkdir -p "$app_dir/logs" "$config_home/cat-gatekeeper"
+    cp "$settings" "$config_file"
+    export XDG_CONFIG_HOME="$config_home"
+    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland}"
+}
+
+command="${1:-start}"
+case "$command" in
     start)
-        [ "$#" -le 1 ] || cgk_die "start does not accept extra arguments"
+        [ "$#" -le 1 ] || die "start does not accept extra arguments"
+        prepare
+        if "$ctl" status >/dev/null 2>&1; then
+            printf 'cat-gatekeeperd is already running.\n'
+            exit 0
+        fi
+        nohup "$daemon" >> "$log_file" 2>&1 &
+        printf 'cat-gatekeeperd started with pid %s\n' "$!"
+        printf 'Log: %s\n' "$log_file"
         ;;
     --foreground)
-        [ "$#" -eq 1 ] || cgk_die "--foreground does not accept extra arguments"
-        foreground=1
+        [ "$#" -eq 1 ] || die "--foreground does not accept extra arguments"
+        prepare
+        exec "$daemon"
         ;;
     status|trigger|dismiss|quit)
-        cgk_run_ctl "$@"
-        exit 0
+        [ "$#" -eq 1 ] || die "$command does not accept extra arguments"
+        prepare
+        exec "$ctl" "$command"
         ;;
     -h|--help)
         usage
         exit 0
         ;;
     *)
-        cgk_die "unknown command: $1"
+        die "unknown command: $command"
         ;;
 esac
-
-cgk_prepare_config
-cgk_export_env
-
-if [ "$foreground" -eq 1 ]; then
-    exec "$cgk_app_dir/bin/cat-gatekeeperd"
-fi
-
-if "$cgk_app_dir/bin/cat-gatekeeperctl" status >/dev/null 2>&1; then
-    printf 'cat-gatekeeperd is already running.\n'
-    exit 0
-fi
-
-nohup "$cgk_app_dir/bin/cat-gatekeeperd" >> "$cgk_log_file" 2>&1 &
-printf 'cat-gatekeeperd started with pid %s\n' "$!"
-printf 'Log: %s\n' "$cgk_log_file"
 EOF
 
 cat > "$package_dir/README-portable.txt" <<EOF
