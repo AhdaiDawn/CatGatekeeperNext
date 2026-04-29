@@ -13,7 +13,6 @@ Options:
   --build-type TYPE     CMake build type. Default: Release
   --package-name NAME   Release directory/archive name.
   --skip-build          Use existing binaries from --build-dir.
-  --skip-assets         Do not regenerate processed assets.
   --skip-archive        Create the release directory only.
   -h, --help            Show this help text.
 EOF
@@ -42,7 +41,6 @@ dist_dir="$project_root/dist"
 build_type="Release"
 package_name=""
 skip_build=0
-skip_assets=0
 skip_archive=0
 
 while [ "$#" -gt 0 ]; do
@@ -71,10 +69,6 @@ while [ "$#" -gt 0 ]; do
             skip_build=1
             shift
             ;;
-        --skip-assets)
-            skip_assets=1
-            shift
-            ;;
         --skip-archive)
             skip_archive=1
             shift
@@ -92,9 +86,6 @@ done
 require_cmd realpath
 if [ "$skip_build" -eq 0 ]; then
     require_cmd cmake
-fi
-if [ "$skip_build" -eq 0 ] && [ "$skip_assets" -eq 0 ]; then
-    require_cmd find
 fi
 if [ "$skip_archive" -eq 0 ]; then
     require_cmd tar
@@ -121,32 +112,6 @@ esac
 
 package_dir="$dist_dir/$package_name"
 archive_path="$dist_dir/$package_name.tar.gz"
-assets_manifest="$project_root/assets/processed/manifest.conf"
-
-if [ "$skip_build" -eq 0 ] && [ "$skip_assets" -eq 0 ]; then
-    need_assets=0
-    if [ ! -f "$assets_manifest" ]; then
-        need_assets=1
-    elif [ "$project_root/tools/preprocess-assets.sh" -nt "$assets_manifest" ]; then
-        need_assets=1
-    else
-        while IFS= read -r -d '' source_file; do
-            if [ "$source_file" -nt "$assets_manifest" ]; then
-                need_assets=1
-                break
-            fi
-        done < <(find "$project_root/assets/source" -type f -print0)
-    fi
-
-    if [ "$need_assets" -eq 1 ]; then
-        log "generating processed assets"
-        "$project_root/tools/preprocess-assets.sh"
-    fi
-fi
-
-if [ "$skip_build" -eq 0 ]; then
-    [ -f "$assets_manifest" ] || die "missing assets/processed/manifest.conf; run tools/preprocess-assets.sh"
-fi
 
 if [ "$skip_build" -eq 0 ]; then
     log "configuring $build_type build in $build_dir"

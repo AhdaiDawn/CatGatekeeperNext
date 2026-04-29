@@ -7,16 +7,16 @@ default:
     @just --list
 
 # Configure the CMake build directory.
-configure build_type="Debug": ensure-assets
+configure build_type="Debug":
     cmake -S . -B {{build_dir}} -DCMAKE_BUILD_TYPE="{{build_type}}"
 
 # Configure and build the project.
-build build_type="Debug": ensure-assets
+build build_type="Debug":
     cmake -S . -B {{build_dir}} -DCMAKE_BUILD_TYPE="{{build_type}}"
     cmake --build {{build_dir}}
 
 # Build with a release configuration.
-release: ensure-assets
+release:
     cmake -S . -B {{build_dir}} -DCMAKE_BUILD_TYPE=Release
     cmake --build {{build_dir}}
 
@@ -28,33 +28,8 @@ package build_type="Release":
 install prefix="":
     if [ -n "{{prefix}}" ]; then cmake --install {{build_dir}} --prefix "{{prefix}}"; else cmake --install {{build_dir}}; fi
 
-# Generate processed runtime assets.
-assets:
-    ./tools/preprocess-assets.sh
-
-# Generate processed assets when they are missing or stale.
-ensure-assets:
-    @need_assets=0; \
-    manifest="assets/processed/manifest.conf"; \
-    if [ ! -f "$manifest" ]; then \
-        need_assets=1; \
-    elif [ "tools/preprocess-assets.sh" -nt "$manifest" ]; then \
-        need_assets=1; \
-    else \
-        while IFS= read -r -d '' source_file; do \
-            if [ "$source_file" -nt "$manifest" ]; then \
-                need_assets=1; \
-                break; \
-            fi; \
-        done < <(find assets/source -type f -print0); \
-    fi; \
-    if [ "$need_assets" -eq 1 ]; then \
-        ./tools/preprocess-assets.sh; \
-    fi
-
 # Run basic local verification.
-check: ensure-assets
-    bash -n tools/preprocess-assets.sh
+check:
     bash -n tools/package-portable.sh
     cmake -S . -B {{build_dir}} -DCMAKE_BUILD_TYPE=Debug
     cmake --build {{build_dir}}

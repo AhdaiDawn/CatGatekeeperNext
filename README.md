@@ -34,12 +34,12 @@ sudo pacman -S cmake gcc extra-cmake-modules pkgconf systemd-libs qt6-base layer
 
 ```sh
 cd CatGatekeeperNext
-./tools/preprocess-assets.sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
-`assets/processed/manifest.conf` is generated from `assets/source/` and is not tracked by Git. The `just build`, `just release`, `just check`, and `just package` commands regenerate it when needed.
+The overlay assets are tracked under `assets/` and embedded into `cat-gatekeeper-overlay`.
+
 
 Outputs:
 

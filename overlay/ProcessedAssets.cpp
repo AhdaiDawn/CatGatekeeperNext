@@ -7,13 +7,13 @@
 
 QString ClipInfo::framePath(const QString &assetsDir, int frameNumber) const
 {
-    return QStringLiteral("%1/processed/%2/frame_%3.png")
+    return QStringLiteral("%1/%2/frame_%3.png")
         .arg(assetsDir, dir, QStringLiteral("%1").arg(frameNumber, 6, 10, QLatin1Char('0')));
 }
 
 QString ClipInfo::videoPath(const QString &assetsDir) const
 {
-    return QStringLiteral("%1/processed/%2").arg(assetsDir, video);
+    return QStringLiteral("%1/%2").arg(assetsDir, video);
 }
 
 quint64 ClipInfo::decodedBytes() const
@@ -101,7 +101,7 @@ static bool validateVideo(const QString &assetsDir, const ClipInfo &clip, QStrin
 
 static bool loadAssets(const QString &assetsDir, ProcessedAssets *assets, QString *error)
 {
-    QString manifestPath = QDir(assetsDir).filePath(QStringLiteral("processed/manifest.conf"));
+    QString manifestPath = QDir(assetsDir).filePath(QStringLiteral("manifest.conf"));
     QFile file(manifestPath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         *error = QStringLiteral("cannot read %1").arg(manifestPath);
@@ -311,5 +311,5 @@ static bool loadAssets(const QString &assetsDir, ProcessedAssets *assets, QStrin
 
 bool ProcessedAssets::loadBundled(ProcessedAssets *assets, QString *error)
 {
-    return loadAssets(QStringLiteral(":/cat-gatekeeper"), assets, error);
+    return loadAssets(QStringLiteral(":/cat-gatekeeper/assets"), assets, error);
 }

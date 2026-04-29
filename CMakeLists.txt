@@ -21,14 +21,14 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 find_package(LayerShellQt REQUIRED)
 
 set(CAT_GATEKEEPER_BUNDLED_ASSETS
-  "${CMAKE_CURRENT_SOURCE_DIR}/assets/processed/manifest.conf"
-  "${CMAKE_CURRENT_SOURCE_DIR}/assets/source/neko1.webm"
-  "${CMAKE_CURRENT_SOURCE_DIR}/assets/source/neko2.webm"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/manifest.conf"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/neko1.webm"
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/neko2.webm"
 )
 
 foreach(asset IN LISTS CAT_GATEKEEPER_BUNDLED_ASSETS)
   if(NOT EXISTS "${asset}")
-    message(FATAL_ERROR "Missing bundled asset ${asset}; run ./tools/preprocess-assets.sh")
+    message(FATAL_ERROR "Missing bundled asset ${asset}")
   endif()
 endforeach()
 
