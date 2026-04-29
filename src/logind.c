@@ -1,4 +1,5 @@
 #include "logind.h"
+#include "log.h"
 
 #include "config.h"
 
@@ -108,7 +109,7 @@ static int get_session_path(sd_bus *bus, const char *session_id, char *path, siz
         "s",
         session_id);
     if (r < 0) {
-        fprintf(stderr, "cat-gatekeeperd: logind GetSession failed: %s\n", error.message ? error.message : strerror(-r));
+        CGK_DAEMON_LOG("logind GetSession failed: %s\n", error.message ? error.message : strerror(-r));
         sd_bus_error_free(&error);
         sd_bus_message_unref(reply);
         return r;
@@ -137,13 +138,13 @@ int cgk_logind_open(struct cgk_logind *logind)
 
     int r = find_session_id(logind->session_id, sizeof(logind->session_id));
     if (r < 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot find active KDE Wayland logind session\n");
+        CGK_DAEMON_LOG("cannot find active KDE Wayland logind session\n");
         return CGK_EXIT_UNAVAILABLE;
     }
 
     r = sd_bus_open_system(&logind->bus);
     if (r < 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot connect to system bus: %s\n", strerror(-r));
+        CGK_DAEMON_LOG("cannot connect to system bus: %s\n", strerror(-r));
         return CGK_EXIT_UNAVAILABLE;
     }
 
@@ -153,7 +154,7 @@ int cgk_logind_open(struct cgk_logind *logind)
         return CGK_EXIT_UNAVAILABLE;
     }
 
-    fprintf(stderr, "cat-gatekeeperd: using logind session %s\n", logind->session_id);
+    CGK_DAEMON_LOG("using logind session %s\n", logind->session_id);
     return 0;
 }
 
@@ -181,7 +182,7 @@ int cgk_logind_locked(struct cgk_logind *logind, bool *locked)
         'b',
         &value);
     if (r < 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot read LockedHint: %s\n", error.message ? error.message : strerror(-r));
+        CGK_DAEMON_LOG("cannot read LockedHint: %s\n", error.message ? error.message : strerror(-r));
         sd_bus_error_free(&error);
         return CGK_EXIT_UNAVAILABLE;
     }

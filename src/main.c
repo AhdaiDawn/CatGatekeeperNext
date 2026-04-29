@@ -1,6 +1,7 @@
 #include "config.h"
 #include "control.h"
 #include "idle.h"
+#include "log.h"
 #include "logind.h"
 #include "reminder.h"
 
@@ -51,19 +52,19 @@ static int check_wayland_environment(void)
     const char *current_desktop = getenv("XDG_CURRENT_DESKTOP");
 
     if (runtime_dir == NULL || runtime_dir[0] == '\0') {
-        fprintf(stderr, "cat-gatekeeperd: XDG_RUNTIME_DIR is required\n");
+        CGK_DAEMON_LOG("XDG_RUNTIME_DIR is required\n");
         return CGK_EXIT_UNAVAILABLE;
     }
     if (wayland_display == NULL || wayland_display[0] == '\0') {
-        fprintf(stderr, "cat-gatekeeperd: WAYLAND_DISPLAY is required\n");
+        CGK_DAEMON_LOG("WAYLAND_DISPLAY is required\n");
         return CGK_EXIT_UNAVAILABLE;
     }
     if (session_type == NULL || strcmp(session_type, "wayland") != 0) {
-        fprintf(stderr, "cat-gatekeeperd: XDG_SESSION_TYPE must be wayland\n");
+        CGK_DAEMON_LOG("XDG_SESSION_TYPE must be wayland\n");
         return CGK_EXIT_UNAVAILABLE;
     }
     if (!desktop_contains_kde(current_desktop)) {
-        fprintf(stderr, "cat-gatekeeperd: XDG_CURRENT_DESKTOP must contain KDE\n");
+        CGK_DAEMON_LOG("XDG_CURRENT_DESKTOP must contain KDE\n");
         return CGK_EXIT_UNAVAILABLE;
     }
 
@@ -141,7 +142,7 @@ int main(void)
     }
 
     if (cgk_idle_enabled(config.idle_reset_seconds)) {
-        fprintf(stderr, "cat-gatekeeperd: idle_reset_seconds is configured but idle detection is reserved for a later version\n");
+        CGK_DAEMON_LOG("idle_reset_seconds is configured but idle detection is reserved for a later version\n");
     }
 
     struct cgk_logind logind;
@@ -171,9 +172,9 @@ int main(void)
         .pid = -1,
     };
 
-    fprintf(stderr, "cat-gatekeeperd: started; interval=%d minutes sleep=%d seconds screen=%d\n", config.interval_minutes, config.sleep_seconds, config.screen_index);
+    CGK_DAEMON_LOG("started; interval=%d minutes sleep=%d seconds screen=%d\n", config.interval_minutes, config.sleep_seconds, config.screen_index);
     if (state == STATE_LOCKED) {
-        fprintf(stderr, "cat-gatekeeperd: session is locked; timer paused\n");
+        CGK_DAEMON_LOG("session is locked; timer paused\n");
     }
 
     while (!should_stop) {
@@ -190,14 +191,14 @@ int main(void)
 
         if (current_locked && state != STATE_LOCKED) {
             if (state == STATE_REMINDING) {
-                fprintf(stderr, "cat-gatekeeperd: session locked; stopping overlay\n");
+                CGK_DAEMON_LOG("session locked; stopping overlay\n");
                 cgk_stop_reminder(&reminder);
             } else {
-                fprintf(stderr, "cat-gatekeeperd: session locked; timer reset\n");
+                CGK_DAEMON_LOG("session locked; timer reset\n");
             }
             state = STATE_LOCKED;
         } else if (!current_locked && state == STATE_LOCKED) {
-            fprintf(stderr, "cat-gatekeeperd: session unlocked; timer restarted\n");
+            CGK_DAEMON_LOG("session unlocked; timer restarted\n");
             state = STATE_COUNTING;
             count_started_ms = cgk_monotonic_ms();
         }
@@ -207,15 +208,15 @@ int main(void)
         cgk_control_poll(&control, &control_status, &control_request);
         if (control_request == CGK_CONTROL_DISMISS) {
             if (state == STATE_REMINDING) {
-                fprintf(stderr, "cat-gatekeeperd: dismiss requested; stopping overlay\n");
+                CGK_DAEMON_LOG("dismiss requested; stopping overlay\n");
                 cgk_stop_reminder(&reminder);
                 state = STATE_COUNTING;
                 count_started_ms = cgk_monotonic_ms();
             } else {
-                fprintf(stderr, "cat-gatekeeperd: dismiss requested; no reminder active\n");
+                CGK_DAEMON_LOG("dismiss requested; no reminder active\n");
             }
         } else if (control_request == CGK_CONTROL_QUIT) {
-            fprintf(stderr, "cat-gatekeeperd: quit requested\n");
+            CGK_DAEMON_LOG("quit requested\n");
             if (state == STATE_REMINDING) {
                 cgk_stop_reminder(&reminder);
             }
@@ -223,15 +224,15 @@ int main(void)
             break;
         } else if (control_request == CGK_CONTROL_TRIGGER) {
             if (state == STATE_COUNTING) {
-                fprintf(stderr, "cat-gatekeeperd: manual trigger requested; starting overlay\n");
+                CGK_DAEMON_LOG("manual trigger requested; starting overlay\n");
                 if (cgk_start_reminder(config.sleep_seconds, config.screen_index, &reminder) == 0) {
                     state = STATE_REMINDING;
                 }
                 count_started_ms = cgk_monotonic_ms();
             } else if (state == STATE_REMINDING) {
-                fprintf(stderr, "cat-gatekeeperd: manual trigger requested; reminder already active\n");
+                CGK_DAEMON_LOG("manual trigger requested; reminder already active\n");
             } else {
-                fprintf(stderr, "cat-gatekeeperd: manual trigger requested while locked; ignored\n");
+                CGK_DAEMON_LOG("manual trigger requested while locked; ignored\n");
             }
         }
 

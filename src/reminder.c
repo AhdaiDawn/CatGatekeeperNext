@@ -1,4 +1,5 @@
 #include "reminder.h"
+#include "log.h"
 
 #include <errno.h>
 #include <signal.h>
@@ -22,14 +23,14 @@ static int resolve_overlay_path(char *path, size_t path_size)
     char self_path[PATH_MAX];
     ssize_t length = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
     if (length < 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot resolve daemon path: %s\n", strerror(errno));
+        CGK_DAEMON_LOG("cannot resolve daemon path: %s\n", strerror(errno));
         return CGK_EXIT_SOFTWARE;
     }
     self_path[length] = '\0';
 
     char *last_slash = strrchr(self_path, '/');
     if (last_slash == NULL) {
-        fprintf(stderr, "cat-gatekeeperd: daemon path has no executable directory: %s\n", self_path);
+        CGK_DAEMON_LOG("daemon path has no executable directory: %s\n", self_path);
         return CGK_EXIT_SOFTWARE;
     }
 
@@ -41,7 +42,7 @@ static int resolve_overlay_path(char *path, size_t path_size)
         written = snprintf(path, path_size, "%s/cat-gatekeeper-overlay", self_path);
     }
     if (written <= 0 || (size_t)written >= path_size) {
-        fprintf(stderr, "cat-gatekeeperd: overlay path is too long\n");
+        CGK_DAEMON_LOG("overlay path is too long\n");
         return CGK_EXIT_SOFTWARE;
     }
     return 0;
@@ -57,11 +58,11 @@ int cgk_validate_overlay(void)
 
     struct stat st;
     if (stat(overlay_path, &st) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: overlay executable does not exist next to daemon: %s\n", overlay_path);
+        CGK_DAEMON_LOG("overlay executable does not exist next to daemon: %s\n", overlay_path);
         return CGK_EXIT_NO_INPUT;
     }
     if (!S_ISREG(st.st_mode) || access(overlay_path, X_OK) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: overlay executable is not runnable: %s\n", overlay_path);
+        CGK_DAEMON_LOG("overlay executable is not runnable: %s\n", overlay_path);
         return CGK_EXIT_NO_INPUT;
     }
     return 0;
@@ -82,7 +83,7 @@ int cgk_start_reminder(int sleep_seconds_value, int screen_index_value, struct c
 
     pid_t pid = fork();
     if (pid < 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot fork overlay: %s\n", strerror(errno));
+        CGK_DAEMON_LOG("cannot fork overlay: %s\n", strerror(errno));
         return -1;
     }
 
@@ -95,7 +96,7 @@ int cgk_start_reminder(int sleep_seconds_value, int screen_index_value, struct c
             "--screen",
             screen_index,
             (char *)NULL);
-        fprintf(stderr, "cat-gatekeeperd: cannot exec overlay %s: %s\n", overlay_path, strerror(errno));
+        CGK_DAEMON_LOG("cannot exec overlay %s: %s\n", overlay_path, strerror(errno));
         _exit(127);
     }
 
@@ -105,7 +106,7 @@ int cgk_start_reminder(int sleep_seconds_value, int screen_index_value, struct c
     reminder->kill_deadline_ms = 0;
     reminder->term_sent = false;
 
-    fprintf(stderr, "cat-gatekeeperd: started overlay pid %ld on screen %d\n", (long)pid, screen_index_value);
+    CGK_DAEMON_LOG("started overlay pid %ld on screen %d\n", (long)pid, screen_index_value);
     return 0;
 }
 
@@ -122,7 +123,7 @@ static bool reap_if_finished(struct cgk_reminder *reminder)
     }
     if (result < 0) {
         if (errno != ECHILD) {
-            fprintf(stderr, "cat-gatekeeperd: waitpid failed: %s\n", strerror(errno));
+            CGK_DAEMON_LOG("waitpid failed: %s\n", strerror(errno));
         }
         reminder->pid = -1;
         return true;
@@ -131,12 +132,12 @@ static bool reap_if_finished(struct cgk_reminder *reminder)
     if (WIFEXITED(status)) {
         int code = WEXITSTATUS(status);
         if (code == 0) {
-            fprintf(stderr, "cat-gatekeeperd: overlay finished\n");
+            CGK_DAEMON_LOG("overlay finished\n");
         } else {
-            fprintf(stderr, "cat-gatekeeperd: overlay exited with code %d\n", code);
+            CGK_DAEMON_LOG("overlay exited with code %d\n", code);
         }
     } else if (WIFSIGNALED(status)) {
-        fprintf(stderr, "cat-gatekeeperd: overlay terminated by signal %d\n", WTERMSIG(status));
+        CGK_DAEMON_LOG("overlay terminated by signal %d\n", WTERMSIG(status));
     }
 
     reminder->pid = -1;
@@ -151,7 +152,7 @@ bool cgk_poll_reminder(struct cgk_reminder *reminder)
 
     unsigned long long now = cgk_monotonic_ms();
     if (!reminder->term_sent && now >= reminder->deadline_ms) {
-        fprintf(stderr, "cat-gatekeeperd: overlay timed out; sending SIGTERM\n");
+        CGK_DAEMON_LOG("overlay timed out; sending SIGTERM\n");
         kill(reminder->pid, SIGTERM);
         reminder->term_sent = true;
         reminder->kill_deadline_ms = now + 2000ULL;
@@ -159,7 +160,7 @@ bool cgk_poll_reminder(struct cgk_reminder *reminder)
     }
 
     if (reminder->term_sent && now >= reminder->kill_deadline_ms) {
-        fprintf(stderr, "cat-gatekeeperd: overlay did not exit after SIGTERM; sending SIGKILL\n");
+        CGK_DAEMON_LOG("overlay did not exit after SIGTERM; sending SIGKILL\n");
         kill(reminder->pid, SIGKILL);
         reap_if_finished(reminder);
         return true;

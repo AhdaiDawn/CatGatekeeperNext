@@ -1,4 +1,5 @@
 #include "config.h"
+#include "log.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -93,7 +94,7 @@ int cgk_config_load(struct cgk_config *config)
 
     char path[PATH_MAX];
     if (config_path(path, sizeof(path)) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot resolve config path; using defaults\n");
+        CGK_DAEMON_LOG("cannot resolve config path; using defaults\n");
         return 0;
     }
 
@@ -102,7 +103,7 @@ int cgk_config_load(struct cgk_config *config)
         if (errno == ENOENT) {
             return 0;
         }
-        fprintf(stderr, "cat-gatekeeperd: cannot read %s: %s\n", path, strerror(errno));
+        CGK_DAEMON_LOG("cannot read %s: %s\n", path, strerror(errno));
         return CGK_EXIT_CONFIG;
     }
 
@@ -114,7 +115,7 @@ int cgk_config_load(struct cgk_config *config)
         line_number++;
         size_t length = strlen(line);
         if (length == sizeof(line) - 1 && line[length - 1] != '\n') {
-            fprintf(stderr, "cat-gatekeeperd: %s:%lu line is too long\n", path, line_number);
+            CGK_DAEMON_LOG("%s:%lu line is too long\n", path, line_number);
             fclose(file);
             return CGK_EXIT_CONFIG;
         }
@@ -126,7 +127,7 @@ int cgk_config_load(struct cgk_config *config)
 
         char *equals = strchr(text, '=');
         if (equals == NULL) {
-            fprintf(stderr, "cat-gatekeeperd: %s:%lu expected key=value\n", path, line_number);
+            CGK_DAEMON_LOG("%s:%lu expected key=value\n", path, line_number);
             fclose(file);
             return CGK_EXIT_CONFIG;
         }
@@ -136,19 +137,19 @@ int cgk_config_load(struct cgk_config *config)
         char *value = trim(equals + 1);
 
         if (key[0] == '\0' || value[0] == '\0') {
-            fprintf(stderr, "cat-gatekeeperd: %s:%lu key and value must be non-empty\n", path, line_number);
+            CGK_DAEMON_LOG("%s:%lu key and value must be non-empty\n", path, line_number);
             fclose(file);
             return CGK_EXIT_CONFIG;
         }
 
         enum config_key parsed_key = key_from_name(key);
         if (parsed_key == KEY_COUNT) {
-            fprintf(stderr, "cat-gatekeeperd: %s:%lu warning: unknown key '%s' ignored\n", path, line_number, key);
+            CGK_DAEMON_LOG("%s:%lu warning: unknown key '%s' ignored\n", path, line_number, key);
             continue;
         }
 
         if (seen[parsed_key]) {
-            fprintf(stderr, "cat-gatekeeperd: %s:%lu duplicate key '%s'\n", path, line_number, key);
+            CGK_DAEMON_LOG("%s:%lu duplicate key '%s'\n", path, line_number, key);
             fclose(file);
             return CGK_EXIT_CONFIG;
         }
@@ -158,7 +159,7 @@ int cgk_config_load(struct cgk_config *config)
         switch (parsed_key) {
         case KEY_INTERVAL_MINUTES:
             if (parse_int_range(value, 1, 1440, &parsed_int) != 0) {
-                fprintf(stderr, "cat-gatekeeperd: %s:%lu interval_minutes must be in 1..1440\n", path, line_number);
+                CGK_DAEMON_LOG("%s:%lu interval_minutes must be in 1..1440\n", path, line_number);
                 fclose(file);
                 return CGK_EXIT_CONFIG;
             }
@@ -166,7 +167,7 @@ int cgk_config_load(struct cgk_config *config)
             break;
         case KEY_SLEEP_SECONDS:
             if (parse_int_range(value, 1, 3600, &parsed_int) != 0) {
-                fprintf(stderr, "cat-gatekeeperd: %s:%lu sleep_seconds must be in 1..3600\n", path, line_number);
+                CGK_DAEMON_LOG("%s:%lu sleep_seconds must be in 1..3600\n", path, line_number);
                 fclose(file);
                 return CGK_EXIT_CONFIG;
             }
@@ -174,7 +175,7 @@ int cgk_config_load(struct cgk_config *config)
             break;
         case KEY_SCREEN_INDEX:
             if (parse_int_range(value, 0, INT_MAX, &parsed_int) != 0) {
-                fprintf(stderr, "cat-gatekeeperd: %s:%lu screen_index must be a non-negative integer\n", path, line_number);
+                CGK_DAEMON_LOG("%s:%lu screen_index must be a non-negative integer\n", path, line_number);
                 fclose(file);
                 return CGK_EXIT_CONFIG;
             }
@@ -182,7 +183,7 @@ int cgk_config_load(struct cgk_config *config)
             break;
         case KEY_IDLE_RESET_SECONDS:
             if (parse_int_range(value, 0, 86400, &parsed_int) != 0) {
-                fprintf(stderr, "cat-gatekeeperd: %s:%lu idle_reset_seconds must be in 0..86400\n", path, line_number);
+                CGK_DAEMON_LOG("%s:%lu idle_reset_seconds must be in 0..86400\n", path, line_number);
                 fclose(file);
                 return CGK_EXIT_CONFIG;
             }
@@ -194,7 +195,7 @@ int cgk_config_load(struct cgk_config *config)
     }
 
     if (ferror(file)) {
-        fprintf(stderr, "cat-gatekeeperd: cannot read %s: %s\n", path, strerror(errno));
+        CGK_DAEMON_LOG("cannot read %s: %s\n", path, strerror(errno));
         fclose(file);
         return CGK_EXIT_CONFIG;
     }

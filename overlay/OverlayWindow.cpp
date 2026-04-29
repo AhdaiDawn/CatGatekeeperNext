@@ -9,8 +9,6 @@
 #include <QScreen>
 #include <Qt>
 
-#include <cstdio>
-
 OverlayWindow::OverlayWindow(const ProcessedAssets &assets, int sleepSeconds, QScreen *screen, QWidget *parent)
     : QWidget(parent)
     , m_assets(assets)
@@ -69,7 +67,6 @@ bool OverlayWindow::initialize(QString *error)
     connect(&m_timer, &QTimer::timeout, this, [this]() {
         QString error;
         if (!m_sequence.update(m_elapsed.elapsed(), &error)) {
-            std::fprintf(stderr, "cat-gatekeeper-overlay: %s\n", qPrintable(error));
             qCritical("%s", qPrintable(error));
             QApplication::exit(3);
             return;

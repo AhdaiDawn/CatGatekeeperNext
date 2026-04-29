@@ -39,6 +39,7 @@ add_executable(cat-gatekeeperd
   src/logind.c
   src/reminder.c
   src/idle.c
+  src/log.c
 )
 
 target_include_directories(cat-gatekeeperd PRIVATE src)
@@ -51,6 +52,7 @@ target_compile_options(cat-gatekeeperd PRIVATE -Wall -Wextra -Wpedantic)
 add_executable(cat-gatekeeperctl
   src/ctl.c
   src/control.c
+  src/log.c
 )
 
 target_include_directories(cat-gatekeeperctl PRIVATE src)

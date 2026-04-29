@@ -4,7 +4,38 @@
 #include <QApplication>
 #include <QCommandLineOption>
 #include <QCommandLineParser>
+#include <QDateTime>
+#include <QMessageLogContext>
 #include <QScreen>
+
+#include <cstdio>
+
+static const char *messageTypeName(QtMsgType type)
+{
+    switch (type) {
+    case QtDebugMsg:
+        return "debug";
+    case QtInfoMsg:
+        return "info";
+    case QtWarningMsg:
+        return "warning";
+    case QtCriticalMsg:
+        return "critical";
+    case QtFatalMsg:
+        return "fatal";
+    }
+    return "log";
+}
+
+static void overlayMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &message)
+{
+    Q_UNUSED(context);
+
+    const QByteArray timestamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH:mm:ss.zzz")).toLocal8Bit();
+    const QByteArray text = message.toLocal8Bit();
+    std::fprintf(stderr, "%s cat-gatekeeper-overlay[%s]: %s\n", timestamp.constData(), messageTypeName(type), text.constData());
+    std::fflush(stderr);
+}
 
 static QScreen *screenByIndex(int requestedIndex)
 {
@@ -23,6 +54,8 @@ static QScreen *screenByIndex(int requestedIndex)
 
 int main(int argc, char **argv)
 {
+    qInstallMessageHandler(overlayMessageHandler);
+
     QApplication app(argc, argv);
     QApplication::setQuitOnLastWindowClosed(true);
 

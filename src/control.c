@@ -3,6 +3,7 @@
 #endif
 
 #include "control.h"
+#include "log.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -88,25 +89,25 @@ static bool write_all(int fd, const char *text)
 static int ensure_runtime_dir(const char *dir_path)
 {
     if (mkdir(dir_path, 0700) != 0 && errno != EEXIST) {
-        fprintf(stderr, "cat-gatekeeperd: cannot create %s: %s\n", dir_path, strerror(errno));
+        CGK_DAEMON_LOG("cannot create %s: %s\n", dir_path, strerror(errno));
         return CGK_EXIT_SOFTWARE;
     }
 
     struct stat st;
     if (stat(dir_path, &st) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot inspect %s: %s\n", dir_path, strerror(errno));
+        CGK_DAEMON_LOG("cannot inspect %s: %s\n", dir_path, strerror(errno));
         return CGK_EXIT_SOFTWARE;
     }
     if (!S_ISDIR(st.st_mode)) {
-        fprintf(stderr, "cat-gatekeeperd: control path is not a directory: %s\n", dir_path);
+        CGK_DAEMON_LOG("control path is not a directory: %s\n", dir_path);
         return CGK_EXIT_SOFTWARE;
     }
     if (st.st_uid != getuid()) {
-        fprintf(stderr, "cat-gatekeeperd: control directory is not owned by current user: %s\n", dir_path);
+        CGK_DAEMON_LOG("control directory is not owned by current user: %s\n", dir_path);
         return CGK_EXIT_SOFTWARE;
     }
     if ((st.st_mode & 077) != 0 && chmod(dir_path, 0700) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot restrict permissions on %s: %s\n", dir_path, strerror(errno));
+        CGK_DAEMON_LOG("cannot restrict permissions on %s: %s\n", dir_path, strerror(errno));
         return CGK_EXIT_SOFTWARE;
     }
 
@@ -144,24 +145,24 @@ static int remove_stale_socket_if_needed(const char *socket_path)
         if (errno == ENOENT) {
             return 0;
         }
-        fprintf(stderr, "cat-gatekeeperd: cannot inspect %s: %s\n", socket_path, strerror(errno));
+        CGK_DAEMON_LOG("cannot inspect %s: %s\n", socket_path, strerror(errno));
         return CGK_EXIT_SOFTWARE;
     }
 
     if (!S_ISSOCK(st.st_mode)) {
-        fprintf(stderr, "cat-gatekeeperd: control socket path already exists and is not a socket: %s\n", socket_path);
+        CGK_DAEMON_LOG("control socket path already exists and is not a socket: %s\n", socket_path);
         return CGK_EXIT_SOFTWARE;
     }
 
     int existing_fd = connect_to_socket_path(socket_path);
     if (existing_fd >= 0) {
         close(existing_fd);
-        fprintf(stderr, "cat-gatekeeperd: another instance is already running\n");
+        CGK_DAEMON_LOG("another instance is already running\n");
         return CGK_EXIT_SOFTWARE;
     }
 
     if (unlink(socket_path) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot remove stale control socket %s: %s\n", socket_path, strerror(errno));
+        CGK_DAEMON_LOG("cannot remove stale control socket %s: %s\n", socket_path, strerror(errno));
         return CGK_EXIT_SOFTWARE;
     }
 
@@ -175,7 +176,7 @@ int cgk_control_server_open(struct cgk_control_server *server)
 
     char dir_path[PATH_MAX];
     if (make_control_paths(dir_path, sizeof(dir_path), server->socket_path, sizeof(server->socket_path)) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot resolve control socket path\n");
+        CGK_DAEMON_LOG("cannot resolve control socket path\n");
         return CGK_EXIT_SOFTWARE;
     }
 
@@ -192,17 +193,17 @@ int cgk_control_server_open(struct cgk_control_server *server)
     struct sockaddr_un addr;
     socklen_t addr_len = 0;
     if (fill_unix_addr(server->socket_path, &addr, &addr_len) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: control socket path is too long: %s\n", server->socket_path);
+        CGK_DAEMON_LOG("control socket path is too long: %s\n", server->socket_path);
         return CGK_EXIT_SOFTWARE;
     }
 
     server->fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (server->fd < 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot create control socket: %s\n", strerror(errno));
+        CGK_DAEMON_LOG("cannot create control socket: %s\n", strerror(errno));
         return CGK_EXIT_SOFTWARE;
     }
     if (set_close_on_exec(server->fd) != 0 || set_nonblocking(server->fd) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot configure control socket: %s\n", strerror(errno));
+        CGK_DAEMON_LOG("cannot configure control socket: %s\n", strerror(errno));
         cgk_control_server_close(server);
         return CGK_EXIT_SOFTWARE;
     }
@@ -211,19 +212,19 @@ int cgk_control_server_open(struct cgk_control_server *server)
     if (bind(server->fd, (struct sockaddr *)&addr, addr_len) != 0) {
         int saved_errno = errno;
         umask(old_umask);
-        fprintf(stderr, "cat-gatekeeperd: cannot bind control socket %s: %s\n", server->socket_path, strerror(saved_errno));
+        CGK_DAEMON_LOG("cannot bind control socket %s: %s\n", server->socket_path, strerror(saved_errno));
         cgk_control_server_close(server);
         return CGK_EXIT_SOFTWARE;
     }
     umask(old_umask);
 
     if (listen(server->fd, 8) != 0) {
-        fprintf(stderr, "cat-gatekeeperd: cannot listen on control socket: %s\n", strerror(errno));
+        CGK_DAEMON_LOG("cannot listen on control socket: %s\n", strerror(errno));
         cgk_control_server_close(server);
         return CGK_EXIT_SOFTWARE;
     }
 
-    fprintf(stderr, "cat-gatekeeperd: control socket ready at %s\n", server->socket_path);
+    CGK_DAEMON_LOG("control socket ready at %s\n", server->socket_path);
     return 0;
 }
 
@@ -299,7 +300,7 @@ int cgk_control_poll(struct cgk_control_server *server, const struct cgk_control
         if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
             return 0;
         }
-        fprintf(stderr, "cat-gatekeeperd: cannot accept control connection: %s\n", strerror(errno));
+        CGK_DAEMON_LOG("cannot accept control connection: %s\n", strerror(errno));
         return 0;
     }
 
@@ -384,24 +385,24 @@ int cgk_control_client_send(const char *command, char *response, size_t response
     char dir_path[PATH_MAX];
     char socket_path[PATH_MAX];
     if (make_control_paths(dir_path, sizeof(dir_path), socket_path, sizeof(socket_path)) != 0) {
-        fprintf(stderr, "cat-gatekeeperctl: XDG_RUNTIME_DIR is required\n");
+        CGK_CTL_LOG("XDG_RUNTIME_DIR is required\n");
         return 1;
     }
     (void)dir_path;
 
     if (access(socket_path, F_OK) != 0 && errno == ENOENT) {
-        fprintf(stderr, "cat-gatekeeperctl: daemon is not running\n");
+        CGK_CTL_LOG("daemon is not running\n");
         return 1;
     }
 
     int fd = connect_to_socket_path(socket_path);
     if (fd < 0) {
         if (errno == ENOENT || errno == ECONNREFUSED) {
-            fprintf(stderr, "cat-gatekeeperctl: daemon is not running\n");
+            CGK_CTL_LOG("daemon is not running\n");
         } else if (errno == ENAMETOOLONG) {
-            fprintf(stderr, "cat-gatekeeperctl: control socket path is too long\n");
+            CGK_CTL_LOG("control socket path is too long\n");
         } else {
-            fprintf(stderr, "cat-gatekeeperctl: cannot connect to daemon: %s\n", strerror(errno));
+            CGK_CTL_LOG("cannot connect to daemon: %s\n", strerror(errno));
         }
         return 1;
     }
@@ -409,7 +410,7 @@ int cgk_control_client_send(const char *command, char *response, size_t response
     char request[128];
     int written = snprintf(request, sizeof(request), "%s\n", command);
     if (written <= 0 || (size_t)written >= sizeof(request) || !write_all(fd, request)) {
-        fprintf(stderr, "cat-gatekeeperctl: cannot send request\n");
+        CGK_CTL_LOG("cannot send request\n");
         close(fd);
         return 1;
     }
@@ -425,14 +426,14 @@ int cgk_control_client_send(const char *command, char *response, size_t response
     } while (poll_result < 0 && errno == EINTR);
 
     if (poll_result <= 0) {
-        fprintf(stderr, "cat-gatekeeperctl: daemon did not reply\n");
+        CGK_CTL_LOG("daemon did not reply\n");
         close(fd);
         return 1;
     }
 
     ssize_t bytes_read = read(fd, response, response_size - 1);
     if (bytes_read < 0) {
-        fprintf(stderr, "cat-gatekeeperctl: cannot read response: %s\n", strerror(errno));
+        CGK_CTL_LOG("cannot read response: %s\n", strerror(errno));
         close(fd);
         return 1;
     }
