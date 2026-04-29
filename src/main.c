@@ -7,6 +7,7 @@
 
 #include <signal.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,12 +37,30 @@ static void install_signal_handlers(void)
     sigaction(SIGTERM, &action, NULL);
 }
 
-static bool desktop_contains_kde(const char *desktop)
+static bool desktop_contains_name(const char *desktop, const char *name)
 {
-    if (desktop == NULL) {
+    if (desktop == NULL || name == NULL || name[0] == '\0') {
         return false;
     }
-    return strstr(desktop, "KDE") != NULL || strstr(desktop, "kde") != NULL;
+
+    size_t name_length = strlen(name);
+    for (const char *cursor = desktop; *cursor != '\0'; cursor++) {
+        size_t i = 0;
+        while (i < name_length && cursor[i] != '\0' &&
+               tolower((unsigned char)cursor[i]) == tolower((unsigned char)name[i])) {
+            i++;
+        }
+        if (i == name_length) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static bool desktop_is_supported(const char *desktop)
+{
+    return desktop_contains_name(desktop, "KDE") || desktop_contains_name(desktop, "GNOME");
 }
 
 static int check_wayland_environment(void)
@@ -63,8 +82,8 @@ static int check_wayland_environment(void)
         CGK_DAEMON_LOG("XDG_SESSION_TYPE must be wayland\n");
         return CGK_EXIT_UNAVAILABLE;
     }
-    if (!desktop_contains_kde(current_desktop)) {
-        CGK_DAEMON_LOG("XDG_CURRENT_DESKTOP must contain KDE\n");
+    if (!desktop_is_supported(current_desktop)) {
+        CGK_DAEMON_LOG("XDG_CURRENT_DESKTOP must contain KDE or GNOME\n");
         return CGK_EXIT_UNAVAILABLE;
     }
 

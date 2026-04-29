@@ -1,9 +1,9 @@
 # Design
 
-CatGatekeeperNext is a small KDE Plasma Wayland reminder. It has two runtime processes:
+CatGatekeeperNext is a small KDE Plasma and GNOME Wayland reminder. It has two runtime processes:
 
 - `cat-gatekeeperd`: C daemon, session timer, logind lock-state handling, local control socket.
-- `cat-gatekeeper-overlay`: Qt/LayerShellQt overlay, FFmpeg video decoding, transparent input-pass-through window.
+- `cat-gatekeeper-overlay`: Qt overlay, optional LayerShellQt integration, FFmpeg video decoding, transparent input-pass-through window.
 
 The daemon starts the overlay only while a reminder is visible. The overlay exits on its own after the configured duration.
 
@@ -12,7 +12,7 @@ The daemon starts the overlay only while a reminder is visible. The overlay exit
 Target:
 
 - Linux
-- KDE Plasma
+- KDE Plasma or GNOME
 - Wayland
 - systemd user session
 
@@ -122,8 +122,10 @@ The overlay:
 
 - loads embedded alpha WebM assets;
 - decodes VP9 alpha frames with FFmpeg/libvpx;
-- draws a full-screen layer-shell overlay;
-- passes mouse input through to windows below it;
+- draws a full-screen overlay;
+- uses layer-shell on KDE Plasma;
+- uses a frameless Qt window fallback on GNOME;
+- requests mouse input pass-through to windows below it;
 - exits after the intro plus `sleep_seconds`.
 
 ## Packaging
@@ -153,7 +155,7 @@ It does not bundle system libraries.
 - `0`: normal exit.
 - `64`: invalid config.
 - `66`: sibling overlay missing or not executable.
-- `69`: required Wayland/logind/KDE session unavailable.
+- `69`: required Wayland/logind/desktop session unavailable.
 - `70`: other program error.
 
 `cat-gatekeeper-overlay`:
@@ -161,11 +163,12 @@ It does not bundle system libraries.
 - `0`: completed.
 - `2`: invalid arguments.
 - `3`: invalid bundled assets.
-- `4`: layer-shell setup failed.
+- `4`: overlay window setup failed.
 
 ## Limits
 
-- KDE Plasma Wayland only.
+- KDE Plasma Wayland and GNOME Wayland are supported.
+- GNOME uses the frameless window fallback because stock GNOME Shell does not expose layer-shell to normal clients.
 - Screen selection by numeric Qt screen index.
 - No settings UI.
 - No browser tracking.

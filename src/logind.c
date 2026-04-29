@@ -138,7 +138,7 @@ int cgk_logind_open(struct cgk_logind *logind)
 
     int r = find_session_id(logind->session_id, sizeof(logind->session_id));
     if (r < 0) {
-        CGK_DAEMON_LOG("cannot find active KDE Wayland logind session\n");
+        CGK_DAEMON_LOG("cannot find active Wayland logind session\n");
         return CGK_EXIT_UNAVAILABLE;
     }
 

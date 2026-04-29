@@ -1,10 +1,10 @@
 # CatGatekeeperNext
 
-A tiny screen guardian for KDE Plasma Wayland. It quietly watches your unlocked time, then sends a transparent cat onto your desktop when it is time to step away for a bit.
+A tiny screen guardian for KDE Plasma and GNOME Wayland. It quietly watches your unlocked time, then sends a transparent cat onto your desktop when it is time to step away for a bit.
 
 [![CatGatekeeperNext demo](assets/demo.gif)](assets/demo.webm)
 
-The cat appears only for the configured reminder window, passes clicks through to the apps underneath, and disappears on its own when the break timer is done.
+The cat appears only for the configured reminder window and disappears on its own when the break timer is done. On KDE the layer-shell backend passes clicks through to apps underneath; on GNOME the frameless window fallback requests the same Qt input transparency, but the compositor may handle it differently.
 
 ## Acknowledgement
 
@@ -18,6 +18,8 @@ Runtime:
 - `qt6-base`
 - `layer-shell-qt`
 - FFmpeg libraries with the `libvpx-vp9` decoder
+
+KDE Plasma uses the layer-shell overlay backend. GNOME Wayland uses a frameless Qt window fallback because GNOME Shell does not expose layer-shell to normal clients.
 
 Build:
 
@@ -96,7 +98,7 @@ Unknown keys are ignored with a warning. Duplicate keys, empty values, and inval
 
 ## Run
 
-The daemon must run inside a KDE Wayland user session with `XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP`, and `XDG_SESSION_TYPE`.
+The daemon must run inside a KDE Plasma or GNOME Wayland user session with `XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP`, and `XDG_SESSION_TYPE`.
 
 ```sh
 build/cat-gatekeeperd
@@ -115,6 +117,7 @@ Test overlay directly:
 
 ```sh
 QT_QPA_PLATFORM=wayland build/cat-gatekeeper-overlay --sleep-seconds 10 --screen 0
+QT_QPA_PLATFORM=wayland build/cat-gatekeeper-overlay --sleep-seconds 10 --screen 0 --backend window
 ```
 
 ## Install
@@ -188,7 +191,7 @@ journalctl --user -u cat-gatekeeper.service -f
 - `0`: normal exit.
 - `64`: invalid config.
 - `66`: missing or non-executable sibling overlay.
-- `69`: missing Wayland/logind/KDE session environment.
+- `69`: missing Wayland/logind/desktop session environment.
 - `70`: other program error.
 
 `cat-gatekeeper-overlay`:
@@ -196,11 +199,12 @@ journalctl --user -u cat-gatekeeper.service -f
 - `0`: completed.
 - `2`: invalid arguments.
 - `3`: invalid bundled assets.
-- `4`: layer-shell setup failed.
+- `4`: overlay window setup failed.
 
 ## Limits
 
-- KDE Plasma Wayland only.
+- KDE Plasma Wayland and GNOME Wayland are supported.
+- GNOME uses a frameless window fallback, so compositor-level stacking and input pass-through behavior can differ from KDE's layer-shell backend.
 - Screen selection uses the configured `screen_index`; unavailable indexes fall back to `0`.
 - No settings UI.
 - No real idle detection yet.

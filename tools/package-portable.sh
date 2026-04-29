@@ -312,7 +312,7 @@ cat > "$package_dir/README-portable.txt" <<EOF
 CatGatekeeperNext portable package
 Version: $version
 
-Target: KDE Plasma Wayland.
+Target: KDE Plasma Wayland and GNOME Wayland.
 No files are installed under /usr. Assets are built into bin/cat-gatekeeper-overlay.
 
 Required runtime libraries:
@@ -320,6 +320,8 @@ Required runtime libraries:
 - qt6-base
 - layer-shell-qt
 - ffmpeg libraries with the libvpx-vp9 decoder
+
+KDE uses the layer-shell overlay backend. GNOME uses a frameless Qt window fallback.
 
 Start:
   ./start.sh

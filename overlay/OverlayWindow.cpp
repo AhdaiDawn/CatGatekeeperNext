@@ -7,39 +7,43 @@
 #include <QFontMetricsF>
 #include <QPainter>
 #include <QScreen>
+#include <QWindow>
 #include <Qt>
 
-OverlayWindow::OverlayWindow(const ProcessedAssets &assets, int sleepSeconds, QScreen *screen, QWidget *parent)
+OverlayWindow::OverlayWindow(const ProcessedAssets &assets, int sleepSeconds, QScreen *screen, OverlayBackend backend, QWidget *parent)
     : QWidget(parent)
     , m_assets(assets)
     , m_sequence(assets, sleepSeconds)
     , m_screen(screen)
     , m_sleepSeconds(sleepSeconds)
+    , m_backend(backend)
 {
     setWindowTitle(QStringLiteral("Cat Gatekeeper"));
     setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool | Qt::WindowTransparentForInput | Qt::WindowDoesNotAcceptFocus);
     setAttribute(Qt::WA_TranslucentBackground, true);
     setAttribute(Qt::WA_NoSystemBackground, true);
+    setAttribute(Qt::WA_OpaquePaintEvent, false);
     setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    setAutoFillBackground(false);
     setFocusPolicy(Qt::NoFocus);
 }
 
-bool OverlayWindow::initialize(QString *error)
+OverlayBackend OverlayWindow::selectedBackend() const
 {
-    if (m_screen == nullptr) {
-        *error = QStringLiteral("screen is not available");
-        return false;
+    if (m_backend != OverlayBackend::Auto) {
+        return m_backend;
     }
 
-    setGeometry(m_screen->geometry());
-    winId();
-    QWindow *window = windowHandle();
-    if (window == nullptr) {
-        *error = QStringLiteral("cannot create native window");
-        return false;
+    const QString desktop = QString::fromLocal8Bit(qgetenv("XDG_CURRENT_DESKTOP"));
+    if (desktop.contains(QStringLiteral("GNOME"), Qt::CaseInsensitive)) {
+        return OverlayBackend::Window;
     }
-    window->setScreen(m_screen);
 
+    return OverlayBackend::LayerShell;
+}
+
+bool OverlayWindow::initializeLayerShell(QWindow *window, QString *error)
+{
     LayerShellQt::Window *layerWindow = LayerShellQt::Window::get(window);
     if (layerWindow == nullptr) {
         *error = QStringLiteral("cannot create layer-shell window");
@@ -59,6 +63,43 @@ bool OverlayWindow::initialize(QString *error)
     layerWindow->setActivateOnShow(false);
     layerWindow->setScreen(m_screen);
     layerWindow->setDesiredSize(m_screen->geometry().size());
+    return true;
+}
+
+bool OverlayWindow::initialize(QString *error)
+{
+    if (m_screen == nullptr) {
+        *error = QStringLiteral("screen is not available");
+        return false;
+    }
+
+    setGeometry(m_screen->geometry());
+    winId();
+    QWindow *window = windowHandle();
+    if (window == nullptr) {
+        *error = QStringLiteral("cannot create native window");
+        return false;
+    }
+    window->setScreen(m_screen);
+
+    OverlayBackend backend = selectedBackend();
+    if (backend == OverlayBackend::LayerShell) {
+        QString layerShellError;
+        if (initializeLayerShell(window, &layerShellError)) {
+            qInfo("using layer-shell overlay backend");
+        } else if (m_backend == OverlayBackend::Auto) {
+            qWarning("layer-shell unavailable; using window overlay backend: %s", qPrintable(layerShellError));
+            backend = OverlayBackend::Window;
+        } else {
+            *error = layerShellError;
+            return false;
+        }
+    }
+
+    if (backend == OverlayBackend::Window) {
+        qInfo("using window overlay backend");
+    }
+    m_activeBackend = backend;
 
     if (!m_sequence.prepare(error)) {
         return false;
@@ -86,12 +127,26 @@ bool OverlayWindow::initialize(QString *error)
     return true;
 }
 
+void OverlayWindow::showOverlay()
+{
+    if (m_activeBackend == OverlayBackend::Window) {
+        setGeometry(m_screen->geometry());
+        resize(m_screen->geometry().size());
+        show();
+        return;
+    }
+
+    showFullScreen();
+}
+
 void OverlayWindow::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
 
     QPainter painter(this);
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.fillRect(rect(), QColor(0, 0, 0, qRound(m_assets.backgroundOpacity * 255.0)));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     const QImage &image = m_sequence.currentImage();
     if (image.isNull()) {
