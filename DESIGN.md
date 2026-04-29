@@ -39,6 +39,8 @@ CMake builds:
 - `cat-gatekeeperctl`
 - `cat-gatekeeper-overlay`
 
+On Windows, `cat-gatekeeperd` and `cat-gatekeeper-overlay` are linked as GUI-subsystem executables so direct launches do not create or retain a console window. `cat-gatekeeperctl` remains a console executable because it prints command results.
+
 Runtime assets are tracked under `assets/`:
 
 ```text
@@ -184,6 +186,17 @@ GitHub Actions builds both release packages:
 
 - Linux: `cat-gatekeeper-linux-x86_64-portable.tar.gz`
 - Windows: `cat-gatekeeper-windows-ucrt64-portable.zip`
+
+The Windows package includes root-level helper scripts:
+
+- `cat-gatekeeper.bat`
+- `start.bat`
+- `status.bat`
+- `trigger.bat`
+- `dismiss.bat`
+- `quit.bat`
+
+The scripts resolve `bin\cat-gatekeeperd.exe` and `bin\cat-gatekeeperctl.exe` relative to the package root.
 
 Push and pull-request builds upload both packages as workflow artifacts. Tags matching `v*` publish both packages plus their `.sha256` files to a GitHub Release.
 

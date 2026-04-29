@@ -160,7 +160,7 @@ static struct cgk_control_status make_control_status(enum daemon_state state, un
     return status;
 }
 
-int main(void)
+static int cgk_daemon_main(void)
 {
     install_signal_handlers();
 
@@ -304,3 +304,19 @@ int main(void)
     cgk_logind_close(&logind);
     return 0;
 }
+
+int main(void)
+{
+    return cgk_daemon_main();
+}
+
+#ifdef _WIN32
+int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous_instance, LPSTR command_line, int show_command)
+{
+    (void)instance;
+    (void)previous_instance;
+    (void)command_line;
+    (void)show_command;
+    return cgk_daemon_main();
+}
+#endif

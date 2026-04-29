@@ -166,8 +166,25 @@ jobs:
           cat > "$package_dir/README-windows.txt" <<'EOF'
           CatGatekeeperNext Windows portable build.
 
-          Run bin\cat-gatekeeperd.exe from a normal unlocked Windows desktop session.
-          Control it with bin\cat-gatekeeperctl.exe status, trigger, dismiss, or quit.
+          Run start.bat from a normal unlocked Windows desktop session.
+          The daemon runs in the background without keeping a command-line window open.
+
+          Control:
+            cat-gatekeeper.bat status
+            cat-gatekeeper.bat trigger
+            cat-gatekeeper.bat dismiss
+            cat-gatekeeper.bat quit
+            status.bat
+            trigger.bat
+            dismiss.bat
+            quit.bat
+
+          Direct binaries:
+            bin\cat-gatekeeperd.exe
+            bin\cat-gatekeeperctl.exe status
+            bin\cat-gatekeeperctl.exe trigger
+            bin\cat-gatekeeperctl.exe dismiss
+            bin\cat-gatekeeperctl.exe quit
           EOF
 
           (cd "$package_dir" && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)

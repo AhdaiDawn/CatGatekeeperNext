@@ -64,6 +64,7 @@ target_include_directories(cat-gatekeeperd PRIVATE src)
 if(WIN32)
   target_compile_definitions(cat-gatekeeperd PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS _WIN32_WINNT=0x0601)
   target_link_libraries(cat-gatekeeperd PRIVATE advapi32 user32)
+  set_target_properties(cat-gatekeeperd PROPERTIES WIN32_EXECUTABLE TRUE)
 else()
   target_compile_definitions(cat-gatekeeperd PRIVATE _POSIX_C_SOURCE=200809L)
   target_link_libraries(cat-gatekeeperd PRIVATE PkgConfig::SYSTEMD)
@@ -129,5 +130,15 @@ install(TARGETS ${CAT_GATEKEEPER_INSTALL_TARGETS}
 if(NOT WIN32)
   install(FILES ${CMAKE_CURRENT_BINARY_DIR}/systemd/cat-gatekeeper.service
     DESTINATION ${CMAKE_INSTALL_DATADIR}/cat-gatekeeper/systemd
+  )
+else()
+  install(PROGRAMS
+    windows/cat-gatekeeper.bat
+    windows/start.bat
+    windows/status.bat
+    windows/trigger.bat
+    windows/dismiss.bat
+    windows/quit.bat
+    DESTINATION .
   )
 endif()

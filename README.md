@@ -136,6 +136,8 @@ On Windows, run from a normal unlocked desktop session:
 build\cat-gatekeeperd.exe
 ```
 
+The Windows daemon is built as a background GUI-subsystem executable, so launching it directly does not keep a command-line window open.
+
 Control:
 
 ```sh
@@ -216,6 +218,19 @@ cat-gatekeeper quit
 `./start.sh` registers a user command at `$HOME/.local/bin/cat-gatekeeper`, or under `CAT_GATEKEEPER_COMMAND_DIR` when that environment variable is set. If that directory is not in `PATH`, the script prints the exact `export PATH=...` line to add. `cat-gatekeeper quit` stops the daemon and removes the registered command.
 
 The package does not write to `/usr`. Runtime libraries are not bundled.
+
+Windows zip packages include convenience scripts in the package root:
+
+```bat
+cat-gatekeeper.bat
+start.bat
+status.bat
+trigger.bat
+dismiss.bat
+quit.bat
+```
+
+`start.bat` launches `bin\cat-gatekeeperd.exe` in the background. `cat-gatekeeper.bat` also accepts `start`, `status`, `trigger`, `dismiss`, and `quit`; the other scripts are shortcuts for those commands.
 
 ## GitHub Release
 
