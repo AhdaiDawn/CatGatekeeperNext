@@ -11,6 +11,7 @@
 #include <QFontMetricsF>
 #include <QPainter>
 #include <QScreen>
+#include <QWindow>
 #include <Qt>
 
 #ifdef Q_OS_WIN
