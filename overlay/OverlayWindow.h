@@ -33,6 +33,7 @@ protected:
 private:
     OverlayBackend selectedBackend() const;
     bool initializeLayerShell(QWindow *window, QString *error);
+    bool initializeWindowBackend(QWindow *window, QString *error);
     QString countdownText(qint64 elapsedMs) const;
     void drawCountdown(QPainter *painter, const QPointF &canvasTopLeft, const QSizeF &drawnCanvas, qreal scale) const;
 

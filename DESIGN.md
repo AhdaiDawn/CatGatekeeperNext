@@ -1,27 +1,35 @@
 # Design
 
-CatGatekeeperNext is a small KDE Plasma and GNOME Wayland reminder. It has two runtime processes:
+CatGatekeeperNext is a small desktop reminder for KDE Plasma Wayland, GNOME Wayland, and Windows. It has two runtime processes:
 
-- `cat-gatekeeperd`: C daemon, session timer, logind lock-state handling, local control socket.
+- `cat-gatekeeperd`: C daemon, session timer, platform lock-state handling, local control endpoint.
 - `cat-gatekeeper-overlay`: Qt overlay, optional LayerShellQt integration, FFmpeg video decoding, transparent input-pass-through window.
 
 The daemon starts the overlay only while a reminder is visible. The overlay exits on its own after the configured duration.
 
 ## Platform
 
-Target:
+Linux target:
 
 - Linux
 - KDE Plasma or GNOME
 - Wayland
 - systemd user session
 
-Required runtime libraries:
+Linux runtime libraries:
 
 - `libsystemd`
 - Qt 6 Widgets
 - LayerShellQt
 - FFmpeg/libav with `libvpx-vp9`
+
+Windows target:
+
+- Windows 10 or newer desktop session
+- Qt 6 Widgets
+- FFmpeg/libav with `libvpx-vp9`
+
+The Linux path uses logind for lock state, Unix sockets for control, `fork`/`exec` for overlay process management, and LayerShellQt for a real Wayland overlay layer. The Windows path uses `OpenInputDesktop`/`SwitchDesktop` for lock-state detection, a per-session named pipe for control, `CreateProcess` plus `WM_CLOSE`/`TerminateProcess` for overlay process management, and a topmost transparent Qt window with `WS_EX_TRANSPARENT` for click-through behavior.
 
 ## Build
 
@@ -68,6 +76,18 @@ Fallback:
 ~/.config/cat-gatekeeper/config.conf
 ```
 
+Windows path:
+
+```text
+%APPDATA%\CatGatekeeper\config.conf
+```
+
+Windows fallback:
+
+```text
+%USERPROFILE%\.config\cat-gatekeeper\config.conf
+```
+
 Supported keys:
 
 - `interval_minutes`: `1..1440`, default `30`.
@@ -85,20 +105,28 @@ Parsing rules:
 
 ## Overlay Resolution
 
-`cat-gatekeeperd` resolves its own path with `/proc/self/exe`, then starts:
+`cat-gatekeeperd` resolves its own path with `/proc/self/exe` on Linux or `GetModuleFileName` on Windows, then starts the sibling overlay:
 
 ```text
 <daemon-directory>/cat-gatekeeper-overlay
 ```
 
+On Windows, the sibling executable is `cat-gatekeeper-overlay.exe`.
+
 This keeps installed builds and portable builds relocatable as long as both executables stay in the same directory.
 
 ## Control
 
-The daemon listens on:
+On Linux, the daemon listens on:
 
 ```text
 $XDG_RUNTIME_DIR/cat-gatekeeper/control.sock
+```
+
+On Windows, the daemon listens on a named pipe scoped to the current Windows session:
+
+```text
+\\.\pipe\cat-gatekeeper-<session-id>-control
 ```
 
 Supported commands:
@@ -128,9 +156,11 @@ The overlay:
 - requests mouse input pass-through to windows below it;
 - exits after the intro plus `sleep_seconds`.
 
+On KDE Plasma, the overlay is a LayerShellQt overlay layer. On GNOME, it is a frameless Qt window fallback. On Windows, it is a frameless topmost Qt window with layered and transparent extended window styles.
+
 ## Packaging
 
-`tools/package-portable.sh` creates:
+`tools/package-portable.sh` is Linux-only and creates:
 
 ```text
 dist/cat-gatekeeper-portable-<version>-<arch>/
@@ -155,7 +185,7 @@ It does not bundle system libraries.
 - `0`: normal exit.
 - `64`: invalid config.
 - `66`: sibling overlay missing or not executable.
-- `69`: required Wayland/logind/desktop session unavailable.
+- `69`: required platform session unavailable.
 - `70`: other program error.
 
 `cat-gatekeeper-overlay`:
@@ -163,12 +193,13 @@ It does not bundle system libraries.
 - `0`: completed.
 - `2`: invalid arguments.
 - `3`: invalid bundled assets.
-- `4`: overlay window setup failed.
+- `4`: overlay setup failed.
 
 ## Limits
 
 - KDE Plasma Wayland and GNOME Wayland are supported.
 - GNOME uses the frameless window fallback because stock GNOME Shell does not expose layer-shell to normal clients.
+- Windows support targets normal desktop sessions and does not display over the secure lock screen.
 - Screen selection by numeric Qt screen index.
 - No settings UI.
 - No browser tracking.

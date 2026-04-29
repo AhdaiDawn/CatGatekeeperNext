@@ -25,10 +25,23 @@ struct cgk_control_status {
     unsigned long long interval_seconds;
 };
 
+#ifdef _WIN32
+
+#include <windows.h>
+
+struct cgk_control_server {
+    HANDLE pipe;
+    char pipe_name[PATH_MAX];
+};
+
+#else
+
 struct cgk_control_server {
     int fd;
     char socket_path[PATH_MAX];
 };
+
+#endif
 
 int cgk_control_server_open(struct cgk_control_server *server);
 int cgk_control_poll(struct cgk_control_server *server, const struct cgk_control_status *status, enum cgk_control_request *request);

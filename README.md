@@ -1,6 +1,6 @@
 # CatGatekeeperNext
 
-A tiny screen guardian for KDE Plasma and GNOME Wayland. It quietly watches your unlocked time, then sends a transparent cat onto your desktop when it is time to step away for a bit.
+A tiny screen guardian for KDE Plasma Wayland, GNOME Wayland, and Windows. It quietly watches your unlocked time, then sends a transparent cat onto your desktop when it is time to step away for a bit.
 
 [![CatGatekeeperNext demo](assets/demo.gif)](assets/demo.webm)
 
@@ -12,7 +12,7 @@ The idea for this project came from https://x.com/konekone2026/status/2048215520
 
 ## Requirements
 
-Runtime:
+Linux runtime:
 
 - `systemd-libs`
 - `qt6-base`
@@ -21,7 +21,7 @@ Runtime:
 
 KDE Plasma uses the layer-shell overlay backend. GNOME Wayland uses a frameless Qt window fallback because GNOME Shell does not expose layer-shell to normal clients.
 
-Build:
+Linux build:
 
 - `cmake`
 - `gcc`
@@ -34,6 +34,18 @@ Arch Linux:
 
 ```sh
 sudo pacman -S cmake gcc extra-cmake-modules pkgconf systemd-libs qt6-base layer-shell-qt ffmpeg
+```
+
+Windows runtime:
+
+- Windows 10 or newer desktop session
+- Qt 6 Widgets runtime libraries
+- FFmpeg libraries with the `libvpx-vp9` decoder
+
+Windows build is currently aimed at MSYS2 MinGW. From a UCRT64 shell:
+
+```sh
+pacman -S mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-qt6-base mingw-w64-ucrt-x86_64-ffmpeg
 ```
 
 ## Build
@@ -55,7 +67,9 @@ build/cat-gatekeeperctl
 build/cat-gatekeeper-overlay
 ```
 
-Common commands:
+On Windows, the output files use the `.exe` suffix.
+
+Common Linux commands:
 
 ```sh
 just build
@@ -78,6 +92,18 @@ Fallback:
 ~/.config/cat-gatekeeper/config.conf
 ```
 
+Windows path:
+
+```text
+%APPDATA%\CatGatekeeper\config.conf
+```
+
+Windows fallback:
+
+```text
+%USERPROFILE%\.config\cat-gatekeeper\config.conf
+```
+
 Example:
 
 ```conf
@@ -98,10 +124,16 @@ Unknown keys are ignored with a warning. Duplicate keys, empty values, and inval
 
 ## Run
 
-The daemon must run inside a KDE Plasma or GNOME Wayland user session with `XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP`, and `XDG_SESSION_TYPE`.
+On Linux, the daemon must run inside a KDE Plasma or GNOME Wayland user session with `XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`, `XDG_CURRENT_DESKTOP`, and `XDG_SESSION_TYPE`.
 
 ```sh
 build/cat-gatekeeperd
+```
+
+On Windows, run from a normal unlocked desktop session:
+
+```bat
+build\cat-gatekeeperd.exe
 ```
 
 Control:
@@ -113,11 +145,26 @@ build/cat-gatekeeperctl dismiss
 build/cat-gatekeeperctl quit
 ```
 
+Windows:
+
+```bat
+build\cat-gatekeeperctl.exe status
+build\cat-gatekeeperctl.exe trigger
+build\cat-gatekeeperctl.exe dismiss
+build\cat-gatekeeperctl.exe quit
+```
+
 Test overlay directly:
 
 ```sh
 QT_QPA_PLATFORM=wayland build/cat-gatekeeper-overlay --sleep-seconds 10 --screen 0
 QT_QPA_PLATFORM=wayland build/cat-gatekeeper-overlay --sleep-seconds 10 --screen 0 --backend window
+```
+
+Windows:
+
+```bat
+build\cat-gatekeeper-overlay.exe --sleep-seconds 10 --screen 0
 ```
 
 ## Install
@@ -137,6 +184,8 @@ cmake --install build
 `cat-gatekeeperd` finds `cat-gatekeeper-overlay` in the same directory as itself.
 
 ## Portable Package
+
+Portable packaging is Linux-only for now.
 
 ```sh
 ./tools/package-portable.sh
@@ -170,6 +219,8 @@ The package does not write to `/usr`. Runtime libraries are not bundled.
 
 ## systemd User Service
 
+The systemd service is Linux-only.
+
 For installed builds, copy or install the generated service file to `~/.config/systemd/user/`, then run:
 
 ```sh
@@ -191,7 +242,7 @@ journalctl --user -u cat-gatekeeper.service -f
 - `0`: normal exit.
 - `64`: invalid config.
 - `66`: missing or non-executable sibling overlay.
-- `69`: missing Wayland/logind/desktop session environment.
+- `69`: missing platform session environment.
 - `70`: other program error.
 
 `cat-gatekeeper-overlay`:
@@ -199,12 +250,13 @@ journalctl --user -u cat-gatekeeper.service -f
 - `0`: completed.
 - `2`: invalid arguments.
 - `3`: invalid bundled assets.
-- `4`: overlay window setup failed.
+- `4`: overlay setup failed.
 
 ## Limits
 
 - KDE Plasma Wayland and GNOME Wayland are supported.
 - GNOME uses a frameless window fallback, so compositor-level stacking and input pass-through behavior can differ from KDE's layer-shell backend.
+- Windows support targets normal desktop sessions and does not display over the secure lock screen.
 - Screen selection uses the configured `screen_index`; unavailable indexes fall back to `0`.
 - No settings UI.
 - No real idle detection yet.

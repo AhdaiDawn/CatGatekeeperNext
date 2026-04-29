@@ -3,6 +3,42 @@
 
 #include "config.h"
 
+#ifdef _WIN32
+
+#include <string.h>
+#include <windows.h>
+
+int cgk_logind_open(struct cgk_logind *logind)
+{
+    memset(logind, 0, sizeof(*logind));
+    CGK_DAEMON_LOG("using Windows input desktop lock detection\n");
+    return 0;
+}
+
+void cgk_logind_close(struct cgk_logind *logind)
+{
+    (void)logind;
+}
+
+int cgk_logind_locked(struct cgk_logind *logind, bool *locked)
+{
+    (void)logind;
+
+    HDESK input_desktop = OpenInputDesktop(0, FALSE, DESKTOP_SWITCHDESKTOP);
+    if (input_desktop == NULL) {
+        *locked = true;
+        return 0;
+    }
+
+    BOOL can_switch = SwitchDesktop(input_desktop);
+    CloseDesktop(input_desktop);
+
+    *locked = can_switch == FALSE;
+    return 0;
+}
+
+#else
+
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -190,3 +226,5 @@ int cgk_logind_locked(struct cgk_logind *logind, bool *locked)
     *locked = value != 0;
     return 0;
 }
+
+#endif

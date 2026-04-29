@@ -11,8 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <time.h>
 #include <unistd.h>
+#endif
 
 static volatile sig_atomic_t should_stop = 0;
 
@@ -30,13 +35,19 @@ static void handle_signal(int signal_number)
 
 static void install_signal_handlers(void)
 {
+#ifdef _WIN32
+    signal(SIGINT, handle_signal);
+    signal(SIGTERM, handle_signal);
+#else
     struct sigaction action;
     memset(&action, 0, sizeof(action));
     action.sa_handler = handle_signal;
     sigaction(SIGINT, &action, NULL);
     sigaction(SIGTERM, &action, NULL);
+#endif
 }
 
+#ifndef _WIN32
 static bool desktop_contains_name(const char *desktop, const char *name)
 {
     if (desktop == NULL || name == NULL || name[0] == '\0') {
@@ -62,9 +73,13 @@ static bool desktop_is_supported(const char *desktop)
 {
     return desktop_contains_name(desktop, "KDE") || desktop_contains_name(desktop, "GNOME");
 }
+#endif
 
 static int check_wayland_environment(void)
 {
+#ifdef _WIN32
+    return 0;
+#else
     const char *runtime_dir = getenv("XDG_RUNTIME_DIR");
     const char *wayland_display = getenv("WAYLAND_DISPLAY");
     const char *session_type = getenv("XDG_SESSION_TYPE");
@@ -88,15 +103,20 @@ static int check_wayland_environment(void)
     }
 
     return 0;
+#endif
 }
 
 static void sleep_one_second(void)
 {
+#ifdef _WIN32
+    Sleep(1000);
+#else
     struct timespec delay = {
         .tv_sec = 1,
         .tv_nsec = 0,
     };
     nanosleep(&delay, NULL);
+#endif
 }
 
 static enum cgk_control_status_state control_status_state(enum daemon_state state)
@@ -187,9 +207,11 @@ int main(void)
 
     enum daemon_state state = locked ? STATE_LOCKED : STATE_COUNTING;
     unsigned long long count_started_ms = cgk_monotonic_ms();
-    struct cgk_reminder reminder = {
-        .pid = -1,
-    };
+    struct cgk_reminder reminder;
+    memset(&reminder, 0, sizeof(reminder));
+#ifndef _WIN32
+    reminder.pid = -1;
+#endif
 
     CGK_DAEMON_LOG("started; interval=%d minutes sleep=%d seconds screen=%d\n", config.interval_minutes, config.sleep_seconds, config.screen_index);
     if (state == STATE_LOCKED) {

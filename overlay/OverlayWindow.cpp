@@ -1,6 +1,12 @@
 #include "OverlayWindow.h"
 
+#include <QtGlobal>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#else
 #include <LayerShellQt/Window>
+#endif
 
 #include <QApplication>
 #include <QFont>
@@ -9,6 +15,38 @@
 #include <QScreen>
 #include <QWindow>
 #include <Qt>
+
+#ifdef Q_OS_WIN
+static bool configureWindowsOverlay(QWindow *window, QString *error)
+{
+    HWND handle = reinterpret_cast<HWND>(window->winId());
+    if (handle == NULL) {
+        *error = QStringLiteral("cannot access native window handle");
+        return false;
+    }
+
+    SetLastError(ERROR_SUCCESS);
+    LONG_PTR extendedStyle = GetWindowLongPtrW(handle, GWL_EXSTYLE);
+    if (extendedStyle == 0 && GetLastError() != ERROR_SUCCESS) {
+        *error = QStringLiteral("cannot read native window style");
+        return false;
+    }
+
+    extendedStyle |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW;
+    SetLastError(ERROR_SUCCESS);
+    if (SetWindowLongPtrW(handle, GWL_EXSTYLE, extendedStyle) == 0 && GetLastError() != ERROR_SUCCESS) {
+        *error = QStringLiteral("cannot update native window style");
+        return false;
+    }
+
+    if (!SetWindowPos(handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED)) {
+        *error = QStringLiteral("cannot make overlay topmost");
+        return false;
+    }
+
+    return true;
+}
+#endif
 
 OverlayWindow::OverlayWindow(const ProcessedAssets &assets, int sleepSeconds, QScreen *screen, OverlayBackend backend, QWidget *parent)
     : QWidget(parent)
@@ -30,6 +68,12 @@ OverlayWindow::OverlayWindow(const ProcessedAssets &assets, int sleepSeconds, QS
 
 OverlayBackend OverlayWindow::selectedBackend() const
 {
+#ifdef Q_OS_WIN
+    if (m_backend == OverlayBackend::LayerShell) {
+        return OverlayBackend::LayerShell;
+    }
+    return OverlayBackend::Window;
+#else
     if (m_backend != OverlayBackend::Auto) {
         return m_backend;
     }
@@ -40,10 +84,16 @@ OverlayBackend OverlayWindow::selectedBackend() const
     }
 
     return OverlayBackend::LayerShell;
+#endif
 }
 
 bool OverlayWindow::initializeLayerShell(QWindow *window, QString *error)
 {
+#ifdef Q_OS_WIN
+    Q_UNUSED(window);
+    *error = QStringLiteral("layer-shell backend is not available on Windows");
+    return false;
+#else
     LayerShellQt::Window *layerWindow = LayerShellQt::Window::get(window);
     if (layerWindow == nullptr) {
         *error = QStringLiteral("cannot create layer-shell window");
@@ -64,6 +114,18 @@ bool OverlayWindow::initializeLayerShell(QWindow *window, QString *error)
     layerWindow->setScreen(m_screen);
     layerWindow->setDesiredSize(m_screen->geometry().size());
     return true;
+#endif
+}
+
+bool OverlayWindow::initializeWindowBackend(QWindow *window, QString *error)
+{
+#ifdef Q_OS_WIN
+    return configureWindowsOverlay(window, error);
+#else
+    Q_UNUSED(window);
+    Q_UNUSED(error);
+    return true;
+#endif
 }
 
 bool OverlayWindow::initialize(QString *error)
@@ -97,6 +159,9 @@ bool OverlayWindow::initialize(QString *error)
     }
 
     if (backend == OverlayBackend::Window) {
+        if (!initializeWindowBackend(window, error)) {
+            return false;
+        }
         qInfo("using window overlay backend");
     }
     m_activeBackend = backend;
@@ -132,7 +197,11 @@ void OverlayWindow::showOverlay()
     if (m_activeBackend == OverlayBackend::Window) {
         setGeometry(m_screen->geometry());
         resize(m_screen->geometry().size());
+#ifdef Q_OS_WIN
+        showFullScreen();
+#else
         show();
+#endif
         return;
     }
 

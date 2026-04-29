@@ -1,0 +1,119 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-msys2-ucrt64:
+    name: MSYS2 UCRT64
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          path-type: inherit
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-ffmpeg
+
+      - name: Configure
+        run: cmake -S . -B build/windows-ucrt64 -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build/windows-ucrt64 --parallel
+
+      - name: Install
+        run: cmake --install build/windows-ucrt64 --prefix dist/windows-ucrt64
+
+      - name: Deploy runtime dependencies
+        run: |
+          set -euo pipefail
+
+          package_dir="$PWD/dist/windows-ucrt64"
+          bin_dir="$package_dir/bin"
+          overlay_exe="$bin_dir/cat-gatekeeper-overlay.exe"
+
+          if [ ! -x "$overlay_exe" ]; then
+            echo "Missing overlay executable: $overlay_exe" >&2
+            exit 1
+          fi
+
+          if command -v windeployqt6 >/dev/null 2>&1; then
+            windeployqt6 --release "$overlay_exe"
+          elif command -v windeployqt >/dev/null 2>&1; then
+            windeployqt --release "$overlay_exe"
+          else
+            echo "windeployqt was not found" >&2
+            exit 1
+          fi
+
+          deps_file="$(mktemp)"
+          targets_file="$(mktemp)"
+
+          collect_msys2_deps() {
+            ldd "$1" | awk '
+              /=>/ && $3 ~ /^\/ucrt64\/bin\// { print $3 }
+              /^[[:space:]]*\/ucrt64\/bin\// { print $1 }
+            '
+          }
+
+          while :; do
+            find "$package_dir" -type f \( -name '*.exe' -o -name '*.dll' \) -print | sort -u > "$targets_file"
+            before_count="$(wc -l < "$targets_file")"
+            : > "$deps_file"
+
+            while IFS= read -r target; do
+              collect_msys2_deps "$target" >> "$deps_file" || true
+            done < "$targets_file"
+
+            while IFS= read -r dep; do
+              [ -n "$dep" ] || continue
+              dest="$bin_dir/$(basename "$dep")"
+              if [ ! -f "$dest" ]; then
+                cp "$dep" "$dest"
+                echo "Copied $(basename "$dep")"
+              fi
+            done < <(sort -u "$deps_file")
+
+            after_count="$(find "$package_dir" -type f \( -name '*.exe' -o -name '*.dll' \) -print | sort -u | wc -l)"
+            if [ "$after_count" -eq "$before_count" ]; then
+              break
+            fi
+          done
+
+          cat > "$package_dir/README-windows.txt" <<'EOF'
+          CatGatekeeperNext Windows portable build.
+
+          Run bin\cat-gatekeeperd.exe from a normal unlocked Windows desktop session.
+          Control it with bin\cat-gatekeeperctl.exe status, trigger, dismiss, or quit.
+          EOF
+
+          (cd "$package_dir" && find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+          find "$package_dir" -maxdepth 3 -type f | sort
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cat-gatekeeper-windows-ucrt64-portable
+          path: dist/windows-ucrt64
+          if-no-files-found: error
