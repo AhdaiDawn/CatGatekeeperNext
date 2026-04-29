@@ -1,0 +1,53 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-msys2-ucrt64:
+    name: MSYS2 UCRT64
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          path-type: inherit
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-qt6-base
+            mingw-w64-ucrt-x86_64-ffmpeg
+
+      - name: Configure
+        run: cmake -S . -B build/windows-ucrt64 -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build/windows-ucrt64 --parallel
+
+      - name: Install
+        run: cmake --install build/windows-ucrt64 --prefix dist/windows-ucrt64
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cat-gatekeeper-windows-ucrt64
+          path: dist/windows-ucrt64
+          if-no-files-found: error
