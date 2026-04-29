@@ -2,7 +2,7 @@
 
 A tiny screen guardian for KDE Plasma Wayland. It quietly watches your unlocked time, then sends a transparent cat onto your desktop when it is time to step away for a bit.
 
-<video src="assets/demo.webm" controls muted loop playsinline width="100%"></video>
+[![CatGatekeeperNext demo](assets/demo.gif)](assets/demo.webm)
 
 The cat appears only for the configured reminder window, passes clicks through to the apps underneath, and disappears on its own when the break timer is done.
 
