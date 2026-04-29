@@ -29,7 +29,7 @@ OverlayWindow::OverlayWindow(const ProcessedAssets &assets, int sleepSeconds, QS
 bool OverlayWindow::initialize(QString *error)
 {
     if (m_screen == nullptr) {
-        *error = QStringLiteral("primary screen is not available");
+        *error = QStringLiteral("screen is not available");
         return false;
     }
 

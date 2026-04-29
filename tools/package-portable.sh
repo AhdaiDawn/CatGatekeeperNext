@@ -139,6 +139,7 @@ install -m 0755 \
 cat > "$package_dir/settings.conf" <<'EOF'
 interval_minutes=30
 sleep_seconds=300
+screen_index=0
 idle_reset_seconds=0
 EOF
 

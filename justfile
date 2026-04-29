@@ -36,7 +36,7 @@ check:
 
 # Run the overlay directly for visual testing.
 overlay seconds="20":
-    QT_QPA_PLATFORM=wayland {{build_dir}}/cat-gatekeeper-overlay --sleep-seconds "{{seconds}}" --screen primary
+    QT_QPA_PLATFORM=wayland {{build_dir}}/cat-gatekeeper-overlay --sleep-seconds "{{seconds}}" --screen 0
 
 # Run the daemon manually.
 daemon:

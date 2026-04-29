@@ -77,6 +77,7 @@ Example:
 ```conf
 interval_minutes=30
 sleep_seconds=300
+screen_index=0
 idle_reset_seconds=0
 ```
 
@@ -84,6 +85,7 @@ Fields:
 
 - `interval_minutes`: `1..1440`, default `30`.
 - `sleep_seconds`: `1..3600`, default `300`.
+- `screen_index`: non-negative integer, default `0`; selects the Qt screen index for the overlay and falls back to `0` when that screen is unavailable.
 - `idle_reset_seconds`: parsed but not implemented, default `0`.
 
 Unknown keys are ignored with a warning. Duplicate keys, empty values, and invalid ranges are errors.
@@ -108,7 +110,7 @@ build/cat-gatekeeperctl quit
 Test overlay directly:
 
 ```sh
-QT_QPA_PLATFORM=wayland build/cat-gatekeeper-overlay --sleep-seconds 10 --screen primary
+QT_QPA_PLATFORM=wayland build/cat-gatekeeper-overlay --sleep-seconds 10 --screen 0
 ```
 
 ## Install
@@ -193,7 +195,7 @@ journalctl --user -u cat-gatekeeper.service -f
 ## Limits
 
 - KDE Plasma Wayland only.
-- Primary screen only.
+- Screen selection uses the configured `screen_index`; unavailable indexes fall back to `0`.
 - No settings UI.
 - No real idle detection yet.
 

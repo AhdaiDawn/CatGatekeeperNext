@@ -171,7 +171,7 @@ int main(void)
         .pid = -1,
     };
 
-    fprintf(stderr, "cat-gatekeeperd: started; interval=%d minutes sleep=%d seconds\n", config.interval_minutes, config.sleep_seconds);
+    fprintf(stderr, "cat-gatekeeperd: started; interval=%d minutes sleep=%d seconds screen=%d\n", config.interval_minutes, config.sleep_seconds, config.screen_index);
     if (state == STATE_LOCKED) {
         fprintf(stderr, "cat-gatekeeperd: session is locked; timer paused\n");
     }
@@ -224,7 +224,7 @@ int main(void)
         } else if (control_request == CGK_CONTROL_TRIGGER) {
             if (state == STATE_COUNTING) {
                 fprintf(stderr, "cat-gatekeeperd: manual trigger requested; starting overlay\n");
-                if (cgk_start_reminder(config.sleep_seconds, &reminder) == 0) {
+                if (cgk_start_reminder(config.sleep_seconds, config.screen_index, &reminder) == 0) {
                     state = STATE_REMINDING;
                 }
                 count_started_ms = cgk_monotonic_ms();
@@ -239,7 +239,7 @@ int main(void)
             unsigned long long elapsed_ms = cgk_monotonic_ms() - count_started_ms;
             unsigned long long interval_ms = (unsigned long long)config.interval_minutes * 60ULL * 1000ULL;
             if (elapsed_ms >= interval_ms) {
-                if (cgk_start_reminder(config.sleep_seconds, &reminder) == 0) {
+                if (cgk_start_reminder(config.sleep_seconds, config.screen_index, &reminder) == 0) {
                     state = STATE_REMINDING;
                 } else {
                     count_started_ms = cgk_monotonic_ms();

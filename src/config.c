@@ -10,6 +10,7 @@
 enum config_key {
     KEY_INTERVAL_MINUTES = 0,
     KEY_SLEEP_SECONDS,
+    KEY_SCREEN_INDEX,
     KEY_IDLE_RESET_SECONDS,
     KEY_COUNT
 };
@@ -54,6 +55,9 @@ static enum config_key key_from_name(const char *key)
     if (strcmp(key, "sleep_seconds") == 0) {
         return KEY_SLEEP_SECONDS;
     }
+    if (strcmp(key, "screen_index") == 0) {
+        return KEY_SCREEN_INDEX;
+    }
     if (strcmp(key, "idle_reset_seconds") == 0) {
         return KEY_IDLE_RESET_SECONDS;
     }
@@ -79,6 +83,7 @@ void cgk_config_set_defaults(struct cgk_config *config)
 {
     config->interval_minutes = 30;
     config->sleep_seconds = 300;
+    config->screen_index = 0;
     config->idle_reset_seconds = 0;
 }
 
@@ -166,6 +171,14 @@ int cgk_config_load(struct cgk_config *config)
                 return CGK_EXIT_CONFIG;
             }
             config->sleep_seconds = parsed_int;
+            break;
+        case KEY_SCREEN_INDEX:
+            if (parse_int_range(value, 0, INT_MAX, &parsed_int) != 0) {
+                fprintf(stderr, "cat-gatekeeperd: %s:%lu screen_index must be a non-negative integer\n", path, line_number);
+                fclose(file);
+                return CGK_EXIT_CONFIG;
+            }
+            config->screen_index = parsed_int;
             break;
         case KEY_IDLE_RESET_SECONDS:
             if (parse_int_range(value, 0, 86400, &parsed_int) != 0) {

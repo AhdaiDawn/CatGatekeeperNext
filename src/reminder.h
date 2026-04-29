@@ -15,7 +15,7 @@ struct cgk_reminder {
 
 unsigned long long cgk_monotonic_ms(void);
 int cgk_validate_overlay(void);
-int cgk_start_reminder(int sleep_seconds, struct cgk_reminder *reminder);
+int cgk_start_reminder(int sleep_seconds, int screen_index, struct cgk_reminder *reminder);
 bool cgk_poll_reminder(struct cgk_reminder *reminder);
 void cgk_stop_reminder(struct cgk_reminder *reminder);
 

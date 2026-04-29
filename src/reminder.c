@@ -67,10 +67,12 @@ int cgk_validate_overlay(void)
     return 0;
 }
 
-int cgk_start_reminder(int sleep_seconds_value, struct cgk_reminder *reminder)
+int cgk_start_reminder(int sleep_seconds_value, int screen_index_value, struct cgk_reminder *reminder)
 {
     char sleep_seconds[32];
     snprintf(sleep_seconds, sizeof(sleep_seconds), "%d", sleep_seconds_value);
+    char screen_index[32];
+    snprintf(screen_index, sizeof(screen_index), "%d", screen_index_value);
 
     char overlay_path[PATH_MAX];
     int result = resolve_overlay_path(overlay_path, sizeof(overlay_path));
@@ -91,7 +93,7 @@ int cgk_start_reminder(int sleep_seconds_value, struct cgk_reminder *reminder)
             "--sleep-seconds",
             sleep_seconds,
             "--screen",
-            "primary",
+            screen_index,
             (char *)NULL);
         fprintf(stderr, "cat-gatekeeperd: cannot exec overlay %s: %s\n", overlay_path, strerror(errno));
         _exit(127);
@@ -103,7 +105,7 @@ int cgk_start_reminder(int sleep_seconds_value, struct cgk_reminder *reminder)
     reminder->kill_deadline_ms = 0;
     reminder->term_sent = false;
 
-    fprintf(stderr, "cat-gatekeeperd: started overlay pid %ld\n", (long)pid);
+    fprintf(stderr, "cat-gatekeeperd: started overlay pid %ld on screen %d\n", (long)pid, screen_index_value);
     return 0;
 }
 

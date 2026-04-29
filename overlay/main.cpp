@@ -6,6 +6,21 @@
 #include <QCommandLineParser>
 #include <QScreen>
 
+static QScreen *screenByIndex(int requestedIndex)
+{
+    const QList<QScreen *> screens = QApplication::screens();
+    if (screens.isEmpty()) {
+        return nullptr;
+    }
+
+    if (requestedIndex < screens.size()) {
+        return screens.at(requestedIndex);
+    }
+
+    qWarning("requested screen %d is not available; falling back to screen 0", requestedIndex);
+    return screens.at(0);
+}
+
 int main(int argc, char **argv)
 {
     QApplication app(argc, argv);
@@ -16,7 +31,7 @@ int main(int argc, char **argv)
     parser.addHelpOption();
 
     QCommandLineOption sleepSecondsOption(QStringLiteral("sleep-seconds"), QStringLiteral("Sleep loop duration in seconds."), QStringLiteral("seconds"));
-    QCommandLineOption screenOption(QStringLiteral("screen"), QStringLiteral("Target screen. Only 'primary' is supported."), QStringLiteral("screen"));
+    QCommandLineOption screenOption(QStringLiteral("screen"), QStringLiteral("Target screen index. Defaults to 0."), QStringLiteral("index"), QStringLiteral("0"));
     parser.addOption(sleepSecondsOption);
     parser.addOption(screenOption);
 
@@ -31,9 +46,11 @@ int main(int argc, char **argv)
     QString screen = parser.value(screenOption);
     bool sleepOk = false;
     int sleepSeconds = parser.value(sleepSecondsOption).toInt(&sleepOk);
+    bool screenOk = false;
+    int screenIndex = screen.toInt(&screenOk);
 
-    if (!sleepOk || sleepSeconds < 1 || sleepSeconds > 3600 || screen != QLatin1String("primary")) {
-        qCritical("usage: cat-gatekeeper-overlay --sleep-seconds <1..3600> --screen primary");
+    if (!sleepOk || sleepSeconds < 1 || sleepSeconds > 3600 || !screenOk || screenIndex < 0) {
+        qCritical("usage: cat-gatekeeper-overlay --sleep-seconds <1..3600> --screen <0..N>");
         return 2;
     }
 
@@ -44,8 +61,8 @@ int main(int argc, char **argv)
         return 3;
     }
 
-    QScreen *primary = QApplication::primaryScreen();
-    OverlayWindow window(assets, sleepSeconds, primary);
+    QScreen *screenTarget = screenByIndex(screenIndex);
+    OverlayWindow window(assets, sleepSeconds, screenTarget);
     if (!window.initialize(&error)) {
         qCritical("%s", qPrintable(error));
         return 4;

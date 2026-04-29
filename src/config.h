@@ -15,6 +15,7 @@
 struct cgk_config {
     int interval_minutes;
     int sleep_seconds;
+    int screen_index;
     int idle_reset_seconds;
 };
 

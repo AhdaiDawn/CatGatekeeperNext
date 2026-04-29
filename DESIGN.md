@@ -72,6 +72,7 @@ Supported keys:
 
 - `interval_minutes`: `1..1440`, default `30`.
 - `sleep_seconds`: `1..3600`, default `300`.
+- `screen_index`: non-negative integer, default `0`; unavailable indexes fall back to `0`.
 - `idle_reset_seconds`: `0..86400`, parsed but not implemented.
 
 Parsing rules:
@@ -114,7 +115,7 @@ Supported commands:
 The overlay command line is:
 
 ```sh
-cat-gatekeeper-overlay --sleep-seconds <seconds> --screen primary
+cat-gatekeeper-overlay --sleep-seconds <seconds> --screen <screen_index>
 ```
 
 The overlay:
@@ -163,7 +164,7 @@ It does not bundle system libraries.
 ## Limits
 
 - KDE Plasma Wayland only.
-- Primary screen only.
+- Screen selection by numeric Qt screen index.
 - No settings UI.
 - No browser tracking.
 - No input blocking.
