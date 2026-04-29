@@ -150,9 +150,9 @@ Run from the unpacked directory:
 
 ```sh
 ./start.sh
-./ctl.sh status
-./ctl.sh trigger
-./ctl.sh quit
+./start.sh status
+./start.sh trigger
+./start.sh quit
 ```
 
 The package does not write to `/usr`. Runtime libraries are not bundled.

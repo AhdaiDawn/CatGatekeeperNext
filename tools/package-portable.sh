@@ -223,22 +223,36 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$script_dir/lib/portable-common.sh"
 
+usage() {
+    cat <<EOF_USAGE
+Usage:
+  $0 [start]
+  $0 --foreground
+  $0 {status|trigger|dismiss|quit}
+EOF_USAGE
+}
+
 foreground=0
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --foreground)
-            foreground=1
-            shift
-            ;;
-        -h|--help)
-            printf 'Usage: %s [--foreground]\n' "$0"
-            exit 0
-            ;;
-        *)
-            cgk_die "unknown option: $1"
-            ;;
-    esac
-done
+case "${1:-start}" in
+    start)
+        [ "$#" -le 1 ] || cgk_die "start does not accept extra arguments"
+        ;;
+    --foreground)
+        [ "$#" -eq 1 ] || cgk_die "--foreground does not accept extra arguments"
+        foreground=1
+        ;;
+    status|trigger|dismiss|quit)
+        cgk_run_ctl "$@"
+        exit 0
+        ;;
+    -h|--help)
+        usage
+        exit 0
+        ;;
+    *)
+        cgk_die "unknown command: $1"
+        ;;
+esac
 
 cgk_prepare_config
 cgk_export_env
@@ -255,21 +269,6 @@ fi
 nohup "$cgk_app_dir/bin/cat-gatekeeperd" >> "$cgk_log_file" 2>&1 &
 printf 'cat-gatekeeperd started with pid %s\n' "$!"
 printf 'Log: %s\n' "$cgk_log_file"
-EOF
-
-cat > "$package_dir/ctl.sh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$script_dir/lib/portable-common.sh"
-
-if [ "$#" -eq 0 ] || [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    printf 'Usage: %s {status|trigger|dismiss|quit}\n' "$0"
-    exit 0
-fi
-
-cgk_run_ctl "$@"
 EOF
 
 cat > "$package_dir/README-portable.txt" <<EOF
@@ -292,10 +291,10 @@ Foreground:
   ./start.sh --foreground
 
 Control:
-  ./ctl.sh status
-  ./ctl.sh trigger
-  ./ctl.sh dismiss
-  ./ctl.sh quit
+  ./start.sh status
+  ./start.sh trigger
+  ./start.sh dismiss
+  ./start.sh quit
 
 Settings: config/settings.conf
 Generated config: config-home/cat-gatekeeper/config.conf
@@ -305,8 +304,7 @@ Thanks to @konekone2026.
 EOF
 
 chmod 0755 \
-    "$package_dir/start.sh" \
-    "$package_dir/ctl.sh"
+    "$package_dir/start.sh"
 
 if [ "$skip_archive" -eq 0 ]; then
     log "creating archive $archive_path"

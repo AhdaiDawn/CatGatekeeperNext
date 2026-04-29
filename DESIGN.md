@@ -146,7 +146,6 @@ The portable package contains:
 - `bin/`
 - `config/settings.conf`
 - `start.sh`
-- `ctl.sh`
 - `README-portable.txt`
 
 It does not bundle system libraries.
