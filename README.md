@@ -1,10 +1,14 @@
 # CatGatekeeperNext
 
-KDE Plasma Wayland reminder daemon with a transparent cat overlay.
+A tiny screen guardian for KDE Plasma Wayland. It quietly watches your unlocked time, then sends a transparent cat onto your desktop when it is time to step away for a bit.
 
-![CatGatekeeperNext demo](examples/demo.png)
+<video src="assets/demo.webm" controls muted loop playsinline width="100%"></video>
 
-The daemon counts unlocked session time. When the interval is reached, it starts `cat-gatekeeper-overlay`; after the overlay exits, the timer restarts. The overlay assets are embedded in the overlay executable.
+The cat appears only for the configured reminder window, passes clicks through to the apps underneath, and disappears on its own when the break timer is done.
+
+## Acknowledgement
+
+The idea for this project came from https://x.com/konekone2026/status/2048215520965709940. Thanks to @konekone2026.
 
 ## Requirements
 
@@ -198,7 +202,3 @@ journalctl --user -u cat-gatekeeper.service -f
 - Screen selection uses the configured `screen_index`; unavailable indexes fall back to `0`.
 - No settings UI.
 - No real idle detection yet.
-
-## Acknowledgement
-
-The idea for this project came from https://x.com/konekone2026/status/2048215520965709940. Thanks to @konekone2026.
